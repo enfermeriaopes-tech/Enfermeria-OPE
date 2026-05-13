@@ -4811,7 +4811,144 @@ function loadState() {
         };
     } catch { return { answers: {}, streak: { current:0, best:0, lastDate:null, totalDays:0 }, testsCompleted: 0, testsByDate: {} }; }
 }
-function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function saveState() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    // Fire-and-forget cloud sync (debounced so rapid saves batch into one upload)
+    schedulePushProgress();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PROGRESS SYNC — keeps `state` mirrored in public.user_progress
+// Strategy:
+//   - Pull on login/boot: merge cloud into local, most-recent wins
+//   - Push on every saveState(), debounced 2s
+//   - Force push on logout
+// ═══════════════════════════════════════════════════════════════
+let _pushTimer = null;
+let _lastPushedAt = 0;
+let _syncInProgress = false;
+
+function schedulePushProgress() {
+    if (!currentUser || _syncInProgress) return;
+    clearTimeout(_pushTimer);
+    _pushTimer = setTimeout(() => pushProgress(), 2000);
+}
+
+async function pushProgress() {
+    if (!currentUser) return;
+    clearTimeout(_pushTimer);
+    const now = new Date().toISOString();
+    try {
+        const { error } = await supa.from('user_progress').upsert({
+            user_id: currentUser.id,
+            payload: state,
+            client_updated_at: now
+        }, { onConflict: 'user_id' });
+        if (error) { console.warn('pushProgress error:', error.message); return; }
+        _lastPushedAt = Date.now();
+    } catch (e) {
+        console.warn('pushProgress failed:', e);
+    }
+}
+
+async function pullAndMergeProgress() {
+    // Called once right after login. Merges cloud state with whatever is in
+    // localStorage so neither side overwrites fresher data.
+    if (!currentUser) return;
+    _syncInProgress = true;
+    try {
+        const { data, error } = await supa
+            .from('user_progress')
+            .select('payload, client_updated_at')
+            .eq('user_id', currentUser.id)
+            .maybeSingle();
+        if (error) { console.warn('pullProgress error:', error.message); return; }
+
+        if (!data) {
+            // Nothing in cloud yet → upload whatever we have locally
+            await pushProgress();
+            return;
+        }
+
+        const cloud = data.payload || {};
+        state = mergeProgress(state, cloud);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        // Upload the merged result so the cloud reflects the union
+        await pushProgress();
+    } catch (e) {
+        console.warn('pullAndMergeProgress failed:', e);
+    } finally {
+        _syncInProgress = false;
+    }
+}
+
+function mergeProgress(local, cloud) {
+    // Merge rules:
+    //  - answers: per-question, keep the side with latest relevant info.
+    //    A question that's been answered on either side wins over unanswered.
+    //    If both answered, keep local (user is probably on this device now).
+    //    saved/doubt flags are OR'd so neither side loses marks.
+    //  - streak: take the one with the most recent lastDate (higher current);
+    //    best is always the max.
+    //  - testsCompleted: take the max (additive-ish counter).
+    //  - testsByDate: per-date max.
+    const merged = {
+        answers: {},
+        streak: { current: 0, best: 0, lastDate: null, totalDays: 0 },
+        testsCompleted: 0,
+        testsByDate: {}
+    };
+
+    // ANSWERS
+    const keys = new Set([
+        ...Object.keys(local?.answers || {}),
+        ...Object.keys(cloud?.answers || {})
+    ]);
+    for (const k of keys) {
+        const l = local?.answers?.[k] || {};
+        const c = cloud?.answers?.[k] || {};
+        // Decide which "answered" side to use
+        let base;
+        if (l.answered && !c.answered) base = l;
+        else if (!l.answered && c.answered) base = c;
+        else base = l.answered ? l : c;  // both or neither → local wins
+        merged.answers[k] = {
+            ...base,
+            saved: !!(l.saved || c.saved),
+            doubt: !!(l.doubt || c.doubt)
+        };
+    }
+
+    // STREAK
+    const ls = local?.streak || {};
+    const cs = cloud?.streak || {};
+    const lDate = ls.lastDate || '';
+    const cDate = cs.lastDate || '';
+    if (cDate > lDate) {
+        merged.streak.current = cs.current || 0;
+        merged.streak.lastDate = cs.lastDate || null;
+    } else {
+        merged.streak.current = ls.current || 0;
+        merged.streak.lastDate = ls.lastDate || null;
+    }
+    merged.streak.best = Math.max(ls.best || 0, cs.best || 0);
+    merged.streak.totalDays = Math.max(ls.totalDays || 0, cs.totalDays || 0);
+
+    // TESTS
+    merged.testsCompleted = Math.max(local?.testsCompleted || 0, cloud?.testsCompleted || 0);
+    const dates = new Set([
+        ...Object.keys(local?.testsByDate || {}),
+        ...Object.keys(cloud?.testsByDate || {})
+    ]);
+    for (const d of dates) {
+        merged.testsByDate[d] = Math.max(
+            (local?.testsByDate || {})[d] || 0,
+            (cloud?.testsByDate || {})[d] || 0
+        );
+    }
+
+    return merged;
+}
 
 // currentUser is now hydrated async from Supabase (see initAuth()).
 // We keep loadAuth/saveAuth as no-ops for backwards compat in the rest of the code.
@@ -5164,6 +5301,7 @@ async function onAuthSuccess(session) {
     const deviceOk = await registerCurrentDevice();
     if (!deviceOk) return;
     await hydrateSubFromProfile();
+    await pullAndMergeProgress();
     enterApp();
 }
 
@@ -5245,6 +5383,8 @@ async function handlePasswordReset(e) {
 
 async function logout() {
     if (!confirm('¿Cerrar sesión? Tu progreso sigue guardado en tu cuenta.')) return;
+    // Push any pending changes before cutting the session
+    try { await pushProgress(); } catch (e) { console.warn('final push failed:', e); }
     // Free the device slot before signing out (so the 2-device limit is respected)
     if (currentUser) {
         try {
@@ -6522,6 +6662,7 @@ async function init() {
             const deviceOk = await registerCurrentDevice();
             if (!deviceOk) return;
             await hydrateSubFromProfile();
+            await pullAndMergeProgress();
             enterApp();
         } else {
             // No session → show landing
@@ -6542,6 +6683,17 @@ async function init() {
         } else if (event === 'PASSWORD_RECOVERY') {
             // User arrived via the reset-password email link → show reset modal
             showResetModal();
+        }
+    });
+
+    // Best-effort push when the user closes/navigates away so the pending
+    // debounced save doesn't get lost
+    window.addEventListener('beforeunload', () => {
+        if (currentUser) {
+            clearTimeout(_pushTimer);
+            try {
+                navigator.sendBeacon && pushProgress();  // fire and forget
+            } catch {}
         }
     });
 }
