@@ -3273,17 +3273,19 @@ body {
 <script>
 // ═══════════════════════════════════════════════════════════════
 // SUPABASE CLIENT (backend: auth, database, payments)
+// We use `supa` as the client name to avoid clashing with the
+// global `window.supabase` object that the SDK exposes.
 // ═══════════════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://lpdmvndgtbngerjdpqim.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_09BRvkEaoeGPteVlX81Yqg_3nOGd528';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Quick connection test (runs once on load, logs to console)
 (async function testSupabase() {
     try {
-        const { data, error } = await supabase.auth.getSession();
+        const { data, error } = await supa.auth.getSession();
         if (error) console.warn('⚠ Supabase connection warning:', error.message);
-        else console.log('✓ Supabase connected. Session:', data.session ? 'active' : 'none');
+        else console.log('%c✓ Supabase connected', 'color:#10b981; font-weight:bold', '· Session:', data.session ? 'active' : 'none');
     } catch (e) {
         console.error('✗ Supabase connection failed:', e);
     }
