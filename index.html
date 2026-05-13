@@ -3129,6 +3129,7 @@ body {
         </div>
 
         <p style="text-align:center; color:var(--text-faint); font-size:0.8rem; margin-top:20px;">OPE Enfermería OSAKIDETZA · v3.0</p>
+        <p id="sync-indicator" style="text-align:center; color:var(--text-faint); font-size:0.75rem; margin-top:4px; display:none;"></p>
 
         <div class="section-label" style="margin-top:24px;">🧪 Testing (solo vista previa)</div>
         <div class="settings-group">
@@ -4821,17 +4822,21 @@ function saveState() {
 // PROGRESS SYNC — keeps `state` mirrored in public.user_progress
 // Strategy:
 //   - Pull on login/boot: merge cloud into local, most-recent wins
-//   - Push on every saveState(), debounced 2s
+//   - Push on every saveState(), debounced 1s
 //   - Force push on logout
+//   - Pull when tab regains focus (catch updates from other devices)
 // ═══════════════════════════════════════════════════════════════
 let _pushTimer = null;
 let _lastPushedAt = 0;
+let _lastPulledAt = 0;
 let _syncInProgress = false;
+const PUSH_DEBOUNCE_MS = 1000;
+const PULL_ON_FOCUS_MIN_GAP_MS = 3000;  // don't spam-pull if tab-switch is rapid
 
 function schedulePushProgress() {
     if (!currentUser || _syncInProgress) return;
     clearTimeout(_pushTimer);
-    _pushTimer = setTimeout(() => pushProgress(), 2000);
+    _pushTimer = setTimeout(() => pushProgress(), PUSH_DEBOUNCE_MS);
 }
 
 async function pushProgress() {
@@ -4844,16 +4849,18 @@ async function pushProgress() {
             payload: state,
             client_updated_at: now
         }, { onConflict: 'user_id' });
-        if (error) { console.warn('pushProgress error:', error.message); return; }
+        if (error) { console.warn('[sync] push error:', error.message); return; }
         _lastPushedAt = Date.now();
+        console.log('%c[sync] ✓ pushed', 'color:#10b981', 'answers:', Object.keys(state.answers).length);
+        updateSyncIndicator();
     } catch (e) {
-        console.warn('pushProgress failed:', e);
+        console.warn('[sync] push failed:', e);
     }
 }
 
 async function pullAndMergeProgress() {
-    // Called once right after login. Merges cloud state with whatever is in
-    // localStorage so neither side overwrites fresher data.
+    // Called after login and when tab regains focus. Merges cloud state with
+    // local so neither side overwrites fresher data.
     if (!currentUser) return;
     _syncInProgress = true;
     try {
@@ -4862,25 +4869,69 @@ async function pullAndMergeProgress() {
             .select('payload, client_updated_at')
             .eq('user_id', currentUser.id)
             .maybeSingle();
-        if (error) { console.warn('pullProgress error:', error.message); return; }
+        if (error) { console.warn('[sync] pull error:', error.message); return; }
 
         if (!data) {
             // Nothing in cloud yet → upload whatever we have locally
+            _syncInProgress = false;
             await pushProgress();
+            _lastPulledAt = Date.now();
             return;
         }
 
         const cloud = data.payload || {};
+        const before = JSON.stringify(state);
         state = mergeProgress(state, cloud);
+        const after = JSON.stringify(state);
+        const changed = before !== after;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-        // Upload the merged result so the cloud reflects the union
-        await pushProgress();
+        _lastPulledAt = Date.now();
+        console.log('%c[sync] ✓ pulled', 'color:#3b82f6', 'answers:', Object.keys(state.answers).length, changed ? '(local updated)' : '(no changes)');
+
+        // Re-render active screen if the local state changed so the user sees fresh data
+        if (changed) {
+            const activeScreen = document.querySelector('.screen.active');
+            if (activeScreen) {
+                const id = activeScreen.id;
+                if (id === 'screen-home') renderHome();
+                else if (id === 'screen-stats') renderStats();
+                else if (id === 'screen-estudia') {
+                    const reviewVisible = document.getElementById('screen-review')?.style.display === 'block';
+                    if (reviewVisible) renderReview();
+                    else showEstudiaHub();
+                }
+            }
+        }
+
+        // Push merged result only if we actually changed something locally, so
+        // the cloud reflects the union without unnecessary writes
+        _syncInProgress = false;
+        if (changed) await pushProgress();
+        updateSyncIndicator();
     } catch (e) {
-        console.warn('pullAndMergeProgress failed:', e);
+        console.warn('[sync] pullAndMerge failed:', e);
     } finally {
         _syncInProgress = false;
     }
 }
+
+function updateSyncIndicator() {
+    const el = document.getElementById('sync-indicator');
+    if (!el) return;
+    if (!currentUser) { el.style.display = 'none'; return; }
+    const ref = Math.max(_lastPushedAt, _lastPulledAt);
+    if (!ref) { el.textContent = 'Sincronizando...'; el.style.display = 'block'; return; }
+    const secs = Math.round((Date.now() - ref) / 1000);
+    let txt;
+    if (secs < 10) txt = '✓ Sincronizado';
+    else if (secs < 60) txt = `✓ Sincronizado hace ${secs}s`;
+    else if (secs < 3600) txt = `✓ Sincronizado hace ${Math.round(secs/60)} min`;
+    else txt = `✓ Sincronizado hace ${Math.round(secs/3600)} h`;
+    el.textContent = txt;
+    el.style.display = 'block';
+}
+// Refresh the "synced X ago" label every 20s so it doesn't lie
+setInterval(updateSyncIndicator, 20000);
 
 function mergeProgress(local, cloud) {
     // Merge rules:
@@ -6466,6 +6517,7 @@ function populateProfile() {
     const sizeMap = { 14: 'Pequeño', 16: 'Normal', 18: 'Grande', 20: 'Muy grande' };
     document.getElementById('font-label').textContent = sizeMap[prefs.fontSize] || 'Normal';
     renderProfileSub();
+    updateSyncIndicator();
 }
 
 function openPrefs(type) {
@@ -6694,6 +6746,23 @@ async function init() {
             try {
                 navigator.sendBeacon && pushProgress();  // fire and forget
             } catch {}
+        }
+    });
+
+    // Pull fresh state when the tab regains focus — catches updates made on
+    // other devices while this one was in the background.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && currentUser) {
+            const gap = Date.now() - _lastPulledAt;
+            if (gap > PULL_ON_FOCUS_MIN_GAP_MS) pullAndMergeProgress();
+        }
+    });
+
+    // Also pull when the network comes back after an offline period
+    window.addEventListener('online', () => {
+        if (currentUser) {
+            console.log('[sync] network online → pulling fresh state');
+            pullAndMergeProgress();
         }
     });
 }
