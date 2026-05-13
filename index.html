@@ -2400,7 +2400,7 @@ body {
                 <button class="landing-btn-primary" onclick="showAuthFromLanding()">Comenzar prueba gratuita</button>
                 <div class="landing-hero-sub-info">
                     <span>✓ 24 horas gratis</span>
-                    <span>✓ Pago único 2,99 €</span>
+                    <span>✓ Pago único 3,99 €</span>
                     <span>✓ Sin suscripción</span>
                 </div>
             </div>
@@ -2430,6 +2430,11 @@ body {
                 <div class="landing-feature-icon" style="background:#e0e7ff; color:#4338ca;">📝</div>
                 <h3>Modo examen simulacro</h3>
                 <p>Prueba tus conocimientos con exámenes aleatorios de 10, 20, 30, 50 o 100 preguntas.</p>
+            </div>
+            <div class="landing-feature">
+                <div class="landing-feature-icon" style="background:#fee2e2; color:#dc2626;">⏱</div>
+                <h3>Simulacro General</h3>
+                <p>Examen oficial completo: 110 preguntas aleatorias de ambos bancos con cronómetro de 2 horas. Exactamente igual que el examen real de Osakidetza.</p>
             </div>
             <div class="landing-feature">
                 <div class="landing-feature-icon" style="background:#fef3c7; color:#a16207;">📖</div>
@@ -2566,6 +2571,7 @@ body {
                 <li><span>✓</span> Banco de Temario Común (200 preguntas)</li>
                 <li><span>✓</span> Respuestas variantes por los 6 sindicatos</li>
                 <li><span>✓</span> Modo examen simulacro ilimitado</li>
+                <li><span>✓</span> Simulacro General oficial (110 preguntas · 120 min)</li>
                 <li><span>✓</span> Modo repaso libre con retroalimentación</li>
                 <li><span>✓</span> Filtrado: correctas, incorrectas, guardadas, para repasar</li>
                 <li><span>✓</span> Búsqueda por número o texto</li>
@@ -2588,7 +2594,7 @@ body {
         </div>
         <div class="landing-pricing-card">
             <div class="landing-pricing-badge">Pago único</div>
-            <div class="landing-pricing-amount">2,99 €</div>
+            <div class="landing-pricing-amount">3,99 €</div>
             <div class="landing-pricing-sub">Acceso permanente</div>
             <div class="landing-pricing-trial">
                 <div class="trial-icon">🕐</div>
@@ -3263,13 +3269,14 @@ body {
             <div class="paywall-feature"><span>✓</span> Banco de Enfermería + Temario Común</div>
             <div class="paywall-feature"><span>✓</span> Respuestas variantes por sindicato</div>
             <div class="paywall-feature"><span>✓</span> Modo examen simulacro ilimitado</div>
+            <div class="paywall-feature"><span>✓</span> Simulacro General oficial (110 preguntas · 120 min)</div>
             <div class="paywall-feature"><span>✓</span> Estadísticas completas y racha de estudio</div>
             <div class="paywall-feature"><span>✓</span> Descarga de los bancos en texto</div>
             <div class="paywall-feature"><span>✓</span> Actualizaciones futuras incluidas</div>
         </div>
 
         <div class="paywall-price">
-            <div class="paywall-price-amount">2,99 €</div>
+            <div class="paywall-price-amount">3,99 €</div>
             <div class="paywall-price-sub">Pago único · Sin suscripción</div>
         </div>
 
@@ -4912,7 +4919,7 @@ async function simulateSubState(newState) {
 
 async function purchasePremium() {
     // Placeholder — Stripe integration comes in Fase 6
-    if (!confirm('¿Activar Premium por 2,99 €? (Demostración — no se realizará ningún cobro real)')) return;
+    if (!confirm('¿Activar Premium por 3,99 €? (Demostración — no se realizará ningún cobro real)')) return;
     sub.premium = true;
     sub.purchasedAt = Date.now();
     saveSub();
@@ -6248,7 +6255,7 @@ function renderSubBanner() {
                 <div class="sub-banner-icon">🕐</div>
                 <div class="sub-banner-body">
                     <h4>Prueba gratuita activa</h4>
-                    <p>${timeText} · Desbloquea por 2,99 €</p>
+                    <p>${timeText} · Desbloquea por 3,99 €</p>
                 </div>
                 <button class="sub-banner-cta" onclick="event.stopPropagation(); purchasePremium();">Premium</button>
             </div>`;
@@ -6291,9 +6298,9 @@ function renderProfileSub() {
                     </div>
                 </div>
                 <div style="font-size:0.85rem; color:var(--text-muted); line-height:1.5; margin-bottom:4px;">
-                    Desbloquea acceso completo y permanente con un pago único de <strong style="color:var(--text);">2,99 €</strong>.
+                    Desbloquea acceso completo y permanente con un pago único de <strong style="color:var(--text);">3,99 €</strong>.
                 </div>
-                <button class="profile-sub-btn gold" onclick="purchasePremium()">Desbloquear Premium · 2,99 €</button>
+                <button class="profile-sub-btn gold" onclick="purchasePremium()">Desbloquear Premium · 3,99 €</button>
             </div>`;
     } else {
         card.innerHTML = `
@@ -6305,7 +6312,7 @@ function renderProfileSub() {
                         <div class="profile-sub-sub">Tu trial ha expirado</div>
                     </div>
                 </div>
-                <button class="profile-sub-btn gold" onclick="purchasePremium()">Desbloquear Premium · 2,99 €</button>
+                <button class="profile-sub-btn gold" onclick="purchasePremium()">Desbloquear Premium · 3,99 €</button>
             </div>`;
     }
 }
