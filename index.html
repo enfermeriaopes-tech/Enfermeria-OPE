@@ -3085,6 +3085,14 @@ body {
         </div>
         <div class="section-label">Cuenta</div>
         <div class="settings-group">
+            <div class="settings-row" onclick="openDevicesScreen()">
+                <div class="settings-icon">📱</div>
+                <div class="settings-text">
+                    <h4>Dispositivos activos</h4>
+                    <p>Gestiona los dispositivos con sesión (máx. 2)</p>
+                </div>
+                <div class="settings-chevron">›</div>
+            </div>
             <div class="settings-row" onclick="exportProgress()">
                 <div class="settings-icon">⬇</div>
                 <div class="settings-text">
@@ -3198,6 +3206,19 @@ body {
             <div id="contact-status" class="contact-status" style="display:none;"></div>
             <button type="submit" class="auth-btn-primary" id="contact-submit">Enviar mensaje</button>
         </form>
+    </div>
+
+    <!-- ─── DISPOSITIVOS ─── -->
+    <div id="screen-devices" class="screen">
+        <button class="back-link" onclick="switchScreen('perfil')">← Volver al perfil</button>
+        <div class="page-header">
+            <h1>Dispositivos activos</h1>
+            <p>Puedes usar la app en hasta 2 dispositivos a la vez</p>
+        </div>
+        <div class="info-card" style="margin-bottom:18px;">
+            <p>Si intentas iniciar sesión desde un <strong>tercer dispositivo</strong>, debes eliminar uno de los existentes desde aquí primero.</p>
+        </div>
+        <div id="devices-list"></div>
     </div>
 </div>
 
@@ -4922,6 +4943,106 @@ function refreshSubUI() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// DEVICE MANAGEMENT (max 2 active devices per user)
+// ═══════════════════════════════════════════════════════════════
+const DEVICE_ID_KEY = 'quizAppDeviceId';
+
+function getOrCreateDeviceId() {
+    // Stable ID per browser installation; survives logout but reset if user
+    // clears localStorage. That's acceptable: worst case they get one extra
+    // slot once.
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id) {
+        id = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+        localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    return id;
+}
+
+function guessDeviceName() {
+    // Friendly label shown in the profile list (iPhone / Chrome on Windows / etc.)
+    const ua = navigator.userAgent || '';
+    let os = 'Desconocido';
+    if (/Windows/i.test(ua)) os = 'Windows';
+    else if (/Mac OS X|Macintosh/i.test(ua)) os = 'Mac';
+    else if (/Android/i.test(ua)) os = 'Android';
+    else if (/iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
+    else if (/Linux/i.test(ua)) os = 'Linux';
+    let browser = 'Navegador';
+    if (/Edg\//i.test(ua)) browser = 'Edge';
+    else if (/Chrome\//i.test(ua)) browser = 'Chrome';
+    else if (/Firefox\//i.test(ua)) browser = 'Firefox';
+    else if (/Safari\//i.test(ua)) browser = 'Safari';
+    return `${browser} · ${os}`;
+}
+
+async function registerCurrentDevice() {
+    // Returns true if the device was allowed (registered or already known),
+    // false if the user hit the limit (and signs out).
+    if (!currentUser) return false;
+    try {
+        const { data, error } = await supa.rpc('register_device', {
+            p_device_id: getOrCreateDeviceId(),
+            p_device_name: guessDeviceName(),
+            p_user_agent: (navigator.userAgent || '').slice(0, 500)
+        });
+        if (error) {
+            console.warn('register_device RPC error:', error.message);
+            // Fail open: don't block the user if the RPC itself fails
+            return true;
+        }
+        if (data && data.allowed === false) {
+            // Over the limit → sign out + show helpful message
+            await supa.auth.signOut();
+            currentUser = null;
+            alert(
+                'Ya tienes 2 dispositivos activos con esta cuenta.\n\n' +
+                'Para usar la app aquí, entra desde uno de los dispositivos existentes, ' +
+                've a Perfil → Dispositivos y elimina el que ya no uses.'
+            );
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('app').style.display = 'none';
+            document.getElementById('bottom-nav').style.display = 'none';
+            document.getElementById('paywall-screen').style.display = 'none';
+            document.getElementById('landing-screen').style.display = 'block';
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            return false;
+        }
+        return true;
+    } catch (e) {
+        console.warn('registerCurrentDevice failed:', e);
+        return true;
+    }
+}
+
+async function listMyDevices() {
+    if (!currentUser) return [];
+    try {
+        const { data, error } = await supa
+            .from('user_devices')
+            .select('id, device_id, device_name, user_agent, first_seen_at, last_seen_at')
+            .eq('user_id', currentUser.id)
+            .order('last_seen_at', { ascending: false });
+        if (error) { console.warn('listMyDevices:', error.message); return []; }
+        return data || [];
+    } catch (e) {
+        console.warn('listMyDevices failed:', e);
+        return [];
+    }
+}
+
+async function removeDevice(deviceRowId) {
+    try {
+        const { error } = await supa.from('user_devices').delete().eq('id', deviceRowId);
+        if (error) { alert('No se pudo eliminar: ' + error.message); return false; }
+        return true;
+    } catch (e) {
+        alert('No se pudo eliminar: ' + e.message);
+        return false;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // AUTH (Supabase: email + password with verification)
 // ═══════════════════════════════════════════════════════════════
 function switchAuthTab(tab) {
@@ -5032,6 +5153,9 @@ async function onAuthSuccess(session) {
         email: session.user.email,
         name: session.user.user_metadata?.name || session.user.email.split('@')[0]
     };
+    // Register this device; if over the 2-device limit we abort and sign out
+    const deviceOk = await registerCurrentDevice();
+    if (!deviceOk) return;
     await hydrateSubFromProfile();
     enterApp();
 }
@@ -5172,7 +5296,7 @@ function switchScreen(name) {
     if (screen) screen.classList.add('active');
 
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    const tabMap = { home:'home', estudia:'estudia', stats:'stats', perfil:'perfil', prefs:'perfil', contact:'perfil' };
+    const tabMap = { home:'home', estudia:'estudia', stats:'stats', perfil:'perfil', prefs:'perfil', contact:'perfil', devices:'perfil' };
     const activeTab = tabMap[name];
     if (activeTab) {
         const navBtn = document.querySelector(`.nav-item[data-tab="${activeTab}"]`);
@@ -6258,6 +6382,54 @@ function openContactForm() {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// DEVICES SCREEN
+// ═══════════════════════════════════════════════════════════════
+function openDevicesScreen() {
+    switchScreen('devices');
+    renderDevices();
+}
+
+async function renderDevices() {
+    const container = document.getElementById('devices-list');
+    if (!container) return;
+    container.innerHTML = '<div class="card" style="text-align:center; padding:30px; color:var(--text-muted);">Cargando...</div>';
+    const devices = await listMyDevices();
+    const myDeviceId = getOrCreateDeviceId();
+    if (devices.length === 0) {
+        container.innerHTML = '<div class="card" style="text-align:center; padding:30px; color:var(--text-muted);">No hay dispositivos registrados.</div>';
+        return;
+    }
+    container.innerHTML = devices.map(d => {
+        const isMe = d.device_id === myDeviceId;
+        const lastSeen = new Date(d.last_seen_at).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+        const firstSeen = new Date(d.first_seen_at).toLocaleDateString('es-ES');
+        const btn = isMe
+            ? '<div style="font-size:0.78rem; color:var(--accent); font-weight:700; padding:8px 0; text-align:right;">📍 Este dispositivo</div>'
+            : `<button onclick="handleRemoveDevice('${d.id}')" style="background:var(--danger-soft); color:var(--danger); border:1px solid var(--danger); border-radius:8px; padding:8px 14px; font-weight:600; font-size:0.85rem; cursor:pointer; font-family:var(--font-sans);">Eliminar</button>`;
+        return `
+            <div class="card" style="margin-bottom:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-family:var(--font-display); font-weight:700; color:var(--text); margin-bottom:4px;">${d.device_name || 'Dispositivo'}</div>
+                        <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">
+                            Última actividad: ${lastSeen}<br>
+                            Añadido: ${firstSeen}
+                        </div>
+                    </div>
+                    <div>${btn}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function handleRemoveDevice(deviceRowId) {
+    if (!confirm('¿Eliminar este dispositivo?\n\nEn ese dispositivo la sesión sigue activa hasta que se recargue la app, pero ya no podrá entrar de nuevo sin volver a iniciar sesión.')) return;
+    const ok = await removeDevice(deviceRowId);
+    if (ok) renderDevices();
+}
+
 async function sendContactForm(event) {
     event.preventDefault();
     const name = document.getElementById('contact-name').value.trim();
@@ -6329,6 +6501,9 @@ async function init() {
                 email: data.session.user.email,
                 name: data.session.user.user_metadata?.name || data.session.user.email.split('@')[0]
             };
+            // Confirm this device is still within the 2-device limit
+            const deviceOk = await registerCurrentDevice();
+            if (!deviceOk) return;
             await hydrateSubFromProfile();
             enterApp();
         } else {
