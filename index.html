@@ -2662,16 +2662,16 @@ body {
                 </div>
             </div>
             <div class="auth-field">
-                <label>Contraseña</label>
+                <label>Contraseña <span style="color:var(--text-faint); font-weight:normal; font-size:0.78rem;">(mínimo 6 caracteres)</span></label>
                 <div class="auth-input-wrapper">
                     <span class="input-icon">🔒</span>
-                    <input type="password" class="auth-input" id="auth-password" placeholder="••••••••" required>
+                    <input type="password" class="auth-input" id="auth-password" placeholder="••••••••" required minlength="6">
                     <button type="button" class="pwd-toggle" onclick="togglePwd()">👁</button>
                 </div>
             </div>
             <button type="submit" class="auth-btn-primary" id="auth-submit">Iniciar sesión</button>
         </form>
-        <a class="auth-forgot" onclick="alert('Función próximamente')">¿Olvidaste tu contraseña?</a>
+        <a class="auth-forgot" onclick="handleForgotPassword()">¿Olvidaste tu contraseña?</a>
     </div>
 </div>
 
@@ -4756,17 +4756,10 @@ function loadState() {
 }
 function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
-function loadAuth() {
-    try {
-        const a = localStorage.getItem(AUTH_KEY);
-        return a ? JSON.parse(a) : null;
-    } catch { return null; }
-}
-function saveAuth(user) {
-    currentUser = user;
-    if (user) localStorage.setItem(AUTH_KEY, JSON.stringify(user));
-    else localStorage.removeItem(AUTH_KEY);
-}
+// currentUser is now hydrated async from Supabase (see initAuth()).
+// We keep loadAuth/saveAuth as no-ops for backwards compat in the rest of the code.
+function loadAuth() { return null; }
+function saveAuth(user) { currentUser = user; }
 
 function loadPrefs() {
     try {
@@ -4777,21 +4770,49 @@ function loadPrefs() {
 function savePrefs() { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); }
 
 // ═══════════════════════════════════════════════════════════════
-// SUBSCRIPTION (front-end only - no backend yet)
+// SUBSCRIPTION — hybrid model:
+// - If user is logged in with Supabase, read trial_start / is_paid
+//   from the `profiles` table (authoritative source)
+// - If there's no session (shouldn't happen after Fase 2, but kept
+//   for safety), fall back to localStorage
 // ═══════════════════════════════════════════════════════════════
 const TRIAL_DURATION_MS = 24 * 60 * 60 * 1000;  // 1 day
 
 function loadSub() {
+    // Start with local fallback; hydrateSubFromProfile() will overwrite once
+    // the Supabase profile is loaded. This keeps the UI responsive on first paint.
     try {
         const s = localStorage.getItem(SUB_KEY);
         if (s) return JSON.parse(s);
     } catch {}
-    // First time: create trial starting now
     const fresh = { status: 'trial', trialStart: Date.now(), premium: false };
     localStorage.setItem(SUB_KEY, JSON.stringify(fresh));
     return fresh;
 }
 function saveSub() { localStorage.setItem(SUB_KEY, JSON.stringify(sub)); }
+
+// Pull the authoritative subscription state from the Supabase `profiles` row.
+async function hydrateSubFromProfile() {
+    if (!currentUser) return;
+    try {
+        const { data, error } = await supa
+            .from('profiles')
+            .select('trial_start, is_paid, paid_at, name')
+            .eq('id', currentUser.id)
+            .single();
+        if (error) { console.warn('Could not load profile:', error.message); return; }
+        if (!data) return;
+        sub.premium = !!data.is_paid;
+        sub.purchasedAt = data.paid_at ? new Date(data.paid_at).getTime() : null;
+        sub.trialStart = data.trial_start ? new Date(data.trial_start).getTime() : Date.now();
+        saveSub();
+        // Also update cached user name if the BD has a better one
+        if (data.name && currentUser) currentUser.name = data.name;
+        refreshSubUI();
+    } catch (e) {
+        console.warn('hydrateSubFromProfile failed:', e);
+    }
+}
 
 function getSubStatus() {
     // Returns: 'premium' | 'trial' | 'expired'
@@ -4812,10 +4833,11 @@ function getTrialRemaining() {
     return { hours, minutes, totalMs: remaining };
 }
 
-function simulateSubState(newState) {
-    // Testing helper: force a given state
+async function simulateSubState(newState) {
+    // Testing helper: force a given state (persists to DB if logged in)
     if (newState === 'premium') {
         sub.premium = true;
+        sub.purchasedAt = Date.now();
     } else if (newState === 'trial') {
         sub.premium = false;
         sub.trialStart = Date.now();
@@ -4824,15 +4846,35 @@ function simulateSubState(newState) {
         sub.trialStart = Date.now() - TRIAL_DURATION_MS - 1000;
     }
     saveSub();
+    // Mirror to Supabase so the state survives device changes
+    if (currentUser) {
+        try {
+            await supa.from('profiles').update({
+                is_paid: sub.premium,
+                paid_at: sub.purchasedAt ? new Date(sub.purchasedAt).toISOString() : null,
+                trial_start: new Date(sub.trialStart).toISOString(),
+                updated_at: new Date().toISOString()
+            }).eq('id', currentUser.id);
+        } catch (e) { console.warn('simulateSubState DB sync failed:', e); }
+    }
     refreshSubUI();
 }
 
-function purchasePremium() {
-    // Placeholder — in Phase 2 this will open Stripe/similar
+async function purchasePremium() {
+    // Placeholder — Stripe integration comes in Fase 6
     if (!confirm('¿Activar Premium por 2,99 €? (Demostración — no se realizará ningún cobro real)')) return;
     sub.premium = true;
     sub.purchasedAt = Date.now();
     saveSub();
+    if (currentUser) {
+        try {
+            await supa.from('profiles').update({
+                is_paid: true,
+                paid_at: new Date(sub.purchasedAt).toISOString(),
+                updated_at: new Date().toISOString()
+            }).eq('id', currentUser.id);
+        } catch (e) { console.warn('purchasePremium DB sync failed:', e); }
+    }
     refreshSubUI();
     alert('¡Premium activado! 🎉\n\nDesbloqueado acceso completo a la app.');
 }
@@ -4851,7 +4893,7 @@ function refreshSubUI() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// AUTH (client-side only — no real OAuth)
+// AUTH (Supabase: email + password with verification)
 // ═══════════════════════════════════════════════════════════════
 function switchAuthTab(tab) {
     document.getElementById('tab-login').classList.toggle('active', tab === 'login');
@@ -4864,43 +4906,138 @@ function showAuthError(msg) {
     const e = document.getElementById('auth-error');
     e.textContent = msg;
     e.classList.add('visible');
+    e.style.background = 'var(--danger-soft)';
+    e.style.color = 'var(--danger)';
+}
+function showAuthSuccess(msg) {
+    const e = document.getElementById('auth-error');
+    e.textContent = msg;
+    e.classList.add('visible');
+    e.style.background = 'var(--success-soft)';
+    e.style.color = 'var(--success)';
 }
 function hideAuthError() {
-    document.getElementById('auth-error').classList.remove('visible');
+    const e = document.getElementById('auth-error');
+    e.classList.remove('visible');
+    e.style.background = '';
+    e.style.color = '';
 }
 function togglePwd() {
     const inp = document.getElementById('auth-password');
     inp.type = inp.type === 'password' ? 'text' : 'password';
 }
-function handleAuth(e) {
+
+async function handleAuth(e) {
     e.preventDefault();
     hideAuthError();
     const email = document.getElementById('auth-email').value.trim();
     const pwd = document.getElementById('auth-password').value;
     const isSignup = document.getElementById('tab-signup').classList.contains('active');
     const name = document.getElementById('auth-name').value.trim();
+    const submitBtn = document.getElementById('auth-submit');
 
     if (!email.includes('@')) return showAuthError('Email no válido');
-    if (pwd.length < 4) return showAuthError('Contraseña demasiado corta (mínimo 4 caracteres)');
+    if (pwd.length < 6) return showAuthError('Contraseña demasiado corta (mínimo 6 caracteres)');
     if (isSignup && !name) return showAuthError('Por favor introduce tu nombre');
 
-    const user = {
-        email,
-        name: name || email.split('@')[0],
-        provider: 'email',
-        createdAt: Date.now()
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = isSignup ? 'Creando cuenta...' : 'Iniciando sesión...';
+
+    try {
+        if (isSignup) {
+            // Sign up: trigger handle_new_user() in Supabase creates the profile row
+            const { data, error } = await supa.auth.signUp({
+                email: email,
+                password: pwd,
+                options: {
+                    data: { name: name },
+                    emailRedirectTo: window.location.origin + window.location.pathname
+                }
+            });
+            if (error) throw error;
+            // If Supabase returns a session, email confirmation is disabled and we can enter
+            if (data.session) {
+                await onAuthSuccess(data.session);
+            } else {
+                // Email confirmation is ON — user needs to click the link
+                showAuthSuccess('✓ Te hemos enviado un email de verificación a ' + email + '. Revisa tu bandeja (y la carpeta de spam) y confirma tu cuenta antes de iniciar sesión.');
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+                return;
+            }
+        } else {
+            // Sign in
+            const { data, error } = await supa.auth.signInWithPassword({
+                email: email,
+                password: pwd
+            });
+            if (error) throw error;
+            await onAuthSuccess(data.session);
+        }
+    } catch (err) {
+        console.error('Auth error:', err);
+        const msg = err.message || 'Error desconocido';
+        // Spanish-ize common errors
+        if (msg.includes('Invalid login credentials')) {
+            showAuthError('Email o contraseña incorrectos');
+        } else if (msg.includes('Email not confirmed')) {
+            showAuthError('Aún no has verificado tu email. Revisa tu bandeja (y el spam).');
+        } else if (msg.includes('already registered') || msg.includes('already been registered')) {
+            showAuthError('Este email ya está registrado. Inicia sesión en su lugar.');
+        } else if (msg.includes('rate limit')) {
+            showAuthError('Demasiados intentos. Espera unos minutos e inténtalo de nuevo.');
+        } else {
+            showAuthError(msg);
+        }
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
+    }
+}
+
+async function onAuthSuccess(session) {
+    // Called after a successful signIn/signUp that returns a session
+    if (!session || !session.user) return;
+    currentUser = {
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.user_metadata?.name || session.user.email.split('@')[0]
     };
-    saveAuth(user);
+    await hydrateSubFromProfile();
     enterApp();
 }
-function logout() {
-    if (!confirm('¿Cerrar sesión? Tu progreso se mantendrá guardado en este dispositivo.')) return;
-    saveAuth(null);
+
+async function handleForgotPassword() {
+    const email = (document.getElementById('auth-email').value || '').trim();
+    if (!email || !email.includes('@')) {
+        showAuthError('Introduce tu email en el campo de arriba y vuelve a pulsar "¿Olvidaste tu contraseña?".');
+        return;
+    }
+    if (!confirm(`¿Enviar email de recuperación a ${email}?`)) return;
+    try {
+        const { error } = await supa.auth.resetPasswordForEmail(email, {
+            redirectTo: window.location.origin + window.location.pathname
+        });
+        if (error) throw error;
+        showAuthSuccess('✓ Te hemos enviado un email con el enlace para restablecer tu contraseña. Revisa tu bandeja (y spam).');
+    } catch (err) {
+        showAuthError(err.message || 'No se pudo enviar el email. Inténtalo más tarde.');
+    }
+}
+
+async function logout() {
+    if (!confirm('¿Cerrar sesión? Tu progreso sigue guardado en tu cuenta.')) return;
+    try { await supa.auth.signOut(); } catch (e) { console.warn('signOut error:', e); }
+    currentUser = null;
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('app').style.display = 'none';
     document.getElementById('bottom-nav').style.display = 'none';
     document.getElementById('paywall-screen').style.display = 'none';
     document.getElementById('landing-screen').style.display = 'block';
+    // Reset form fields
+    ['auth-email','auth-password','auth-name'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+    });
     window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
@@ -4922,7 +5059,7 @@ function showAuthFromLanding() {
 // ═══════════════════════════════════════════════════════════════
 // APP NAVIGATION
 // ═══════════════════════════════════════════════════════════════
-function enterApp() {
+async function enterApp() {
     document.getElementById('landing-screen').style.display = 'none';
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('app').style.display = 'block';
@@ -6088,18 +6225,43 @@ async function sendContactForm(event) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// INIT
+// INIT — checks for an existing Supabase session and routes the user
 // ═══════════════════════════════════════════════════════════════
-function init() {
+async function init() {
     checkStreakReset();
     applyTheme(prefs.theme, false);
     applyFontSize(prefs.fontSize, false);
-    if (currentUser) {
-        enterApp();
-    } else {
-        // Show landing by default
+
+    // Look for an existing Supabase session (persisted in localStorage by the SDK)
+    try {
+        const { data, error } = await supa.auth.getSession();
+        if (!error && data.session) {
+            // Already logged in → go straight to the app
+            currentUser = {
+                id: data.session.user.id,
+                email: data.session.user.email,
+                name: data.session.user.user_metadata?.name || data.session.user.email.split('@')[0]
+            };
+            await hydrateSubFromProfile();
+            enterApp();
+        } else {
+            // No session → show landing
+            document.getElementById('landing-screen').style.display = 'block';
+        }
+    } catch (e) {
+        console.warn('init auth check failed:', e);
         document.getElementById('landing-screen').style.display = 'block';
     }
+
+    // React to auth state changes (another tab, token refresh, sign out…)
+    supa.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_OUT') {
+            currentUser = null;
+            // UI already reset by logout(); do nothing else here.
+        } else if (event === 'TOKEN_REFRESHED' && session) {
+            // Session keeps rolling; nothing UI-level to do.
+        }
+    });
 }
 
 init();
