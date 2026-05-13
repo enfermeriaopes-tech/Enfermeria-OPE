@@ -3130,6 +3130,9 @@ body {
 
         <p style="text-align:center; color:var(--text-faint); font-size:0.8rem; margin-top:20px;">OPE Enfermería OSAKIDETZA · v3.0</p>
         <p id="sync-indicator" style="text-align:center; color:var(--text-faint); font-size:0.75rem; margin-top:4px; display:none;"></p>
+        <div style="text-align:center; margin-top:8px;">
+            <button onclick="forceSyncNow()" style="background:transparent; border:1px solid var(--border); color:var(--text-muted); padding:6px 14px; border-radius:99px; font-size:0.78rem; cursor:pointer; font-family:var(--font-sans);">🔄 Sincronizar ahora</button>
+        </div>
 
         <div class="section-label" style="margin-top:24px;">🧪 Testing (solo vista previa)</div>
         <div class="settings-group">
@@ -4896,8 +4899,11 @@ async function pullAndMergeProgress() {
                 if (id === 'screen-home') renderHome();
                 else if (id === 'screen-stats') renderStats();
                 else if (id === 'screen-estudia') {
+                    // Re-render whichever sub-screen is visible inside Estudia
                     const reviewVisible = document.getElementById('screen-review')?.style.display === 'block';
+                    const bankVisible = document.getElementById('screen-bank')?.style.display === 'block';
                     if (reviewVisible) renderReview();
+                    else if (bankVisible) { /* bank-detail counts auto-refresh on next interaction */ }
                     else showEstudiaHub();
                 }
             }
@@ -6637,6 +6643,15 @@ async function handleRemoveDevice(deviceRowId) {
     if (!confirm('¿Eliminar este dispositivo?\n\nEn ese dispositivo la sesión sigue activa hasta que se recargue la app, pero ya no podrá entrar de nuevo sin volver a iniciar sesión.')) return;
     const ok = await removeDevice(deviceRowId);
     if (ok) renderDevices();
+}
+
+async function forceSyncNow() {
+    // Manual refresh from the profile: pulls the latest cloud state and
+    // re-renders the current screen. Useful for debugging sync issues.
+    if (!currentUser) return alert('No hay sesión activa.');
+    _lastPulledAt = 0;  // reset throttle so the next pull is immediate
+    await pullAndMergeProgress();
+    alert('✓ Sincronización completada.\n\nTotal de respuestas: ' + Object.keys(state.answers).length);
 }
 
 async function sendContactForm(event) {
