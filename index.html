@@ -5238,6 +5238,16 @@ async function handlePasswordReset(e) {
 
 async function logout() {
     if (!confirm('¿Cerrar sesión? Tu progreso sigue guardado en tu cuenta.')) return;
+    // Free the device slot before signing out (so the 2-device limit is respected)
+    if (currentUser) {
+        try {
+            const myDeviceId = getOrCreateDeviceId();
+            await supa.from('user_devices')
+                .delete()
+                .eq('user_id', currentUser.id)
+                .eq('device_id', myDeviceId);
+        } catch (e) { console.warn('Could not release device slot on logout:', e); }
+    }
     try { await supa.auth.signOut(); } catch (e) { console.warn('signOut error:', e); }
     currentUser = null;
     document.getElementById('auth-screen').style.display = 'none';
