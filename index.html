@@ -3152,14 +3152,6 @@ body {
                 </div>
                 <div class="settings-chevron">›</div>
             </div>
-            <div class="settings-row" onclick="simulateSubState('premium')">
-                <div class="settings-icon">👑</div>
-                <div class="settings-text">
-                    <h4>Simular: Premium activo</h4>
-                    <p>Sin restricciones</p>
-                </div>
-                <div class="settings-chevron">›</div>
-            </div>
         </div>
     </div>
 
@@ -5112,22 +5104,62 @@ async function simulateSubState(newState) {
 }
 
 async function purchasePremium() {
-    // Placeholder — Stripe integration comes in Fase 6
-    if (!confirm('¿Activar Premium por 3,99 €? (Demostración — no se realizará ningún cobro real)')) return;
-    sub.premium = true;
-    sub.purchasedAt = Date.now();
-    saveSub();
-    if (currentUser) {
-        try {
-            await supa.from('profiles').update({
-                is_paid: true,
-                paid_at: new Date(sub.purchasedAt).toISOString(),
-                updated_at: new Date().toISOString()
-            }).eq('id', currentUser.id);
-        } catch (e) { console.warn('purchasePremium DB sync failed:', e); }
+    // Opens Stripe Checkout in a new tab. Stripe redirects back to the app
+    // with ?payment=success once paid, and our webhook flips is_paid=true.
+    if (!currentUser) {
+        alert('Inicia sesión antes de desbloquear Premium.');
+        return;
     }
-    refreshSubUI();
-    alert('¡Premium activado! 🎉\n\nDesbloqueado acceso completo a la app.');
+    try {
+        const { data: { session } } = await supa.auth.getSession();
+        if (!session) throw new Error('No hay sesión activa');
+
+        const res = await fetch(
+            `${SUPABASE_URL}/functions/v1/create-checkout-session`,
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        const body = await res.json();
+        if (!res.ok || !body.url) {
+            throw new Error(body.error || 'No se pudo crear el pago');
+        }
+        // Redirect in the same tab so the browser comes back to ?payment=success
+        window.location.href = body.url;
+    } catch (e) {
+        console.error('purchasePremium error:', e);
+        alert('No se pudo iniciar el pago: ' + (e.message || 'Error desconocido'));
+    }
+}
+
+async function handleStripeReturnSuccess() {
+    // The webhook usually flips is_paid within 1-2 seconds, but it's async.
+    // Poll profiles a few times until we see is_paid=true.
+    alert('✓ Pago procesado. Estamos activando tu Premium...');
+    let tries = 0;
+    const maxTries = 10;
+    while (tries < maxTries) {
+        await hydrateSubFromProfile();
+        if (sub.premium) {
+            alert('🎉 ¡Premium activado! Ya tienes acceso completo a la app.');
+            refreshSubUI();
+            return;
+        }
+        await new Promise(r => setTimeout(r, 1500));
+        tries++;
+    }
+    alert(
+        'Tu pago se procesó correctamente, pero la activación de Premium está tardando más de lo habitual.\n\n' +
+        'Refresca la app en unos segundos. Si en 5 minutos sigue sin activarse, contáctanos desde Perfil → Contáctanos.'
+    );
+}
+
+function handleStripeReturnCancel() {
+    alert('Pago cancelado. Puedes volver a intentarlo cuando quieras desde Perfil.');
 }
 
 function refreshSubUI() {
@@ -6715,6 +6747,15 @@ async function init() {
     applyTheme(prefs.theme, false);
     applyFontSize(prefs.fontSize, false);
 
+    // Detect Stripe Checkout redirect (?payment=success | ?payment=cancel)
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment');
+    if (paymentStatus) {
+        // Clean the URL so a refresh doesn't re-trigger the flow
+        const clean = window.location.origin + window.location.pathname;
+        history.replaceState({}, '', clean);
+    }
+
     // Look for an existing Supabase session (persisted in localStorage by the SDK)
     try {
         const { data, error } = await supa.auth.getSession();
@@ -6731,6 +6772,9 @@ async function init() {
             await hydrateSubFromProfile();
             await pullAndMergeProgress();
             enterApp();
+            // If we just came back from Stripe, handle the post-payment flow
+            if (paymentStatus === 'success') handleStripeReturnSuccess();
+            else if (paymentStatus === 'cancel') handleStripeReturnCancel();
         } else {
             // No session → show landing
             document.getElementById('landing-screen').style.display = 'block';
