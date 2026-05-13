@@ -3201,6 +3201,35 @@ body {
     </div>
 </div>
 
+<!-- PASSWORD RESET MODAL (shown when user arrives via recovery link) -->
+<div id="reset-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:300; align-items:center; justify-content:center; padding:20px;">
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-xl); padding:28px 24px; max-width:400px; width:100%; box-shadow:var(--shadow-lg);">
+        <div style="text-align:center; margin-bottom:20px;">
+            <div style="font-size:2.5rem; margin-bottom:8px;">🔑</div>
+            <h2 style="font-family:var(--font-display); font-size:1.3rem; font-weight:800; color:var(--text); margin-bottom:6px;">Restablecer contraseña</h2>
+            <p style="color:var(--text-muted); font-size:0.9rem;">Introduce tu nueva contraseña</p>
+        </div>
+        <div class="auth-error" id="reset-error" style="display:none; margin-bottom:14px;"></div>
+        <form onsubmit="handlePasswordReset(event)">
+            <div class="auth-field">
+                <label>Nueva contraseña <span style="color:var(--text-faint); font-weight:normal; font-size:0.78rem;">(mínimo 6 caracteres)</span></label>
+                <div class="auth-input-wrapper">
+                    <span class="input-icon">🔒</span>
+                    <input type="password" class="auth-input" id="reset-password" placeholder="••••••••" required minlength="6" autocomplete="new-password">
+                </div>
+            </div>
+            <div class="auth-field">
+                <label>Confirmar contraseña</label>
+                <div class="auth-input-wrapper">
+                    <span class="input-icon">🔒</span>
+                    <input type="password" class="auth-input" id="reset-password2" placeholder="••••••••" required minlength="6" autocomplete="new-password">
+                </div>
+            </div>
+            <button type="submit" class="auth-btn-primary" id="reset-submit" style="margin-top:10px;">Guardar contraseña</button>
+        </form>
+    </div>
+</div>
+
 <!-- PAYWALL (shown when trial expires) -->
 <div id="paywall-screen">
     <div class="paywall-card">
@@ -5025,6 +5054,64 @@ async function handleForgotPassword() {
     }
 }
 
+function showResetModal() {
+    // Hide everything else so the user focuses on the reset
+    document.getElementById('landing-screen').style.display = 'none';
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('bottom-nav').style.display = 'none';
+    document.getElementById('paywall-screen').style.display = 'none';
+    const modal = document.getElementById('reset-modal');
+    modal.style.display = 'flex';
+    document.getElementById('reset-password').value = '';
+    document.getElementById('reset-password2').value = '';
+    document.getElementById('reset-error').style.display = 'none';
+    setTimeout(() => document.getElementById('reset-password').focus(), 100);
+}
+
+async function handlePasswordReset(e) {
+    e.preventDefault();
+    const pwd1 = document.getElementById('reset-password').value;
+    const pwd2 = document.getElementById('reset-password2').value;
+    const errEl = document.getElementById('reset-error');
+    const submitBtn = document.getElementById('reset-submit');
+
+    const showErr = (msg) => {
+        errEl.textContent = msg;
+        errEl.style.display = 'block';
+    };
+    errEl.style.display = 'none';
+
+    if (pwd1.length < 6) return showErr('La contraseña debe tener al menos 6 caracteres.');
+    if (pwd1 !== pwd2) return showErr('Las contraseñas no coinciden.');
+
+    submitBtn.disabled = true;
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = 'Guardando...';
+
+    try {
+        const { data, error } = await supa.auth.updateUser({ password: pwd1 });
+        if (error) throw error;
+        // Success → hide modal and enter the app with the new session
+        document.getElementById('reset-modal').style.display = 'none';
+        alert('✓ Contraseña actualizada correctamente. Ya has entrado en la app.');
+        // The session after recovery is already active, so we can go straight in
+        if (data && data.user) {
+            currentUser = {
+                id: data.user.id,
+                email: data.user.email,
+                name: data.user.user_metadata?.name || data.user.email.split('@')[0]
+            };
+            await hydrateSubFromProfile();
+            enterApp();
+        }
+    } catch (err) {
+        showErr(err.message || 'No se pudo actualizar la contraseña.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    }
+}
+
 async function logout() {
     if (!confirm('¿Cerrar sesión? Tu progreso sigue guardado en tu cuenta.')) return;
     try { await supa.auth.signOut(); } catch (e) { console.warn('signOut error:', e); }
@@ -6260,6 +6347,9 @@ async function init() {
             // UI already reset by logout(); do nothing else here.
         } else if (event === 'TOKEN_REFRESHED' && session) {
             // Session keeps rolling; nothing UI-level to do.
+        } else if (event === 'PASSWORD_RECOVERY') {
+            // User arrived via the reset-password email link → show reset modal
+            showResetModal();
         }
     });
 }
