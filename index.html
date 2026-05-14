@@ -10,6 +10,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Supabase JS client (for auth, database sync, etc.) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Google reCAPTCHA v3 (invisible bot detection) -->
+<script src="https://www.google.com/recaptcha/api.js?render=6LdjQuosAAAAAI493YcPHngnBqzMFE1_CHLLz4aJ"></script>
 <style>
 /* ═══════════════════════════════════════════════════════════════
    THEME TOKENS (light by default, dark via [data-theme="dark"])
@@ -2380,6 +2382,13 @@ body {
     overflow: hidden !important;
     opacity: 0 !important;
     pointer-events: none !important;
+}
+
+/* reCAPTCHA v3 badge — keep visible above the bottom nav (legal requirement
+   of Google: either show the badge or include privacy notice text) */
+.grecaptcha-badge {
+    bottom: 100px !important;
+    z-index: 50 !important;
 }
 </style>
 </head>
@@ -5338,6 +5347,60 @@ function isLikelyBot(formKey, honeypotIds = []) {
     }
     return false;
 }
+
+// ── reCAPTCHA v3 helper ─────────────────────────────────────────
+const RECAPTCHA_SITE_KEY = '6LdjQuosAAAAAI493YcPHngnBqzMFE1_CHLLz4aJ';
+
+async function getRecaptchaToken(action) {
+    // Returns a one-time token from Google reCAPTCHA v3.
+    // The token is verified server-side via the verify-recaptcha Edge Function.
+    if (typeof grecaptcha === 'undefined' || !grecaptcha.execute) {
+        console.warn('[recaptcha] not loaded; skipping');
+        return null;
+    }
+    try {
+        return await new Promise((resolve, reject) => {
+            grecaptcha.ready(async () => {
+                try {
+                    const token = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action });
+                    resolve(token);
+                } catch (e) { reject(e); }
+            });
+        });
+    } catch (e) {
+        console.warn('[recaptcha] execute failed:', e);
+        return null;
+    }
+}
+
+async function verifyRecaptcha(token, action) {
+    // Calls the Supabase Edge Function that verifies the token with Google.
+    // Returns true if the score is acceptable, false otherwise.
+    if (!token) return true;  // soft-fail: don't block users if reCAPTCHA failed to load
+    try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/verify-recaptcha`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY
+            },
+            body: JSON.stringify({ token, action })
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            console.warn('[recaptcha] verify failed:', body);
+            return true;  // soft-fail
+        }
+        if (body.success === false) {
+            console.warn('[recaptcha] BOT detected, score:', body.score);
+            return false;
+        }
+        return true;
+    } catch (e) {
+        console.warn('[recaptcha] verify error:', e);
+        return true;  // soft-fail (network errors shouldn't block legit users)
+    }
+}
 function switchAuthTab(tab) {
     document.getElementById('tab-login').classList.toggle('active', tab === 'login');
     document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
@@ -5378,6 +5441,15 @@ async function handleAuth(e) {
     // We lie to the user (success-looking message) so bots don't learn to bypass.
     if (isLikelyBot('auth', ['hp-website'])) {
         showAuthSuccess('✓ Procesando solicitud...');
+        return;
+    }
+
+    // reCAPTCHA v3 verification (invisible)
+    const isSignupNow = document.getElementById('tab-signup').classList.contains('active');
+    const captchaToken = await getRecaptchaToken(isSignupNow ? 'signup' : 'login');
+    const captchaOk = await verifyRecaptcha(captchaToken, isSignupNow ? 'signup' : 'login');
+    if (!captchaOk) {
+        showAuthError('No hemos podido verificar que eres humano. Recarga la página e inténtalo de nuevo.');
         return;
     }
 
@@ -5466,6 +5538,13 @@ async function handleForgotPassword() {
     // Anti-bot: silent drop on honeypot/too-fast
     if (isLikelyBot('auth', ['hp-website'])) {
         showAuthSuccess('✓ Si el email existe, recibirás un enlace.');
+        return;
+    }
+    // reCAPTCHA v3
+    const captchaToken = await getRecaptchaToken('forgot_password');
+    const captchaOk = await verifyRecaptcha(captchaToken, 'forgot_password');
+    if (!captchaOk) {
+        showAuthError('No hemos podido verificar que eres humano. Recarga la página e inténtalo de nuevo.');
         return;
     }
     const email = (document.getElementById('auth-email').value || '').trim();
@@ -6972,6 +7051,17 @@ async function sendContactForm(event) {
         statusEl.style.display = 'block';
         statusEl.textContent = '✓ Mensaje enviado correctamente.';
         document.getElementById('contact-message').value = '';
+        return;
+    }
+
+    // reCAPTCHA v3
+    const captchaToken = await getRecaptchaToken('contact');
+    const captchaOk = await verifyRecaptcha(captchaToken, 'contact');
+    if (!captchaOk) {
+        const statusEl = document.getElementById('contact-status');
+        statusEl.className = 'contact-status error';
+        statusEl.style.display = 'block';
+        statusEl.textContent = '✗ No hemos podido verificar que eres humano. Recarga la página e inténtalo de nuevo.';
         return;
     }
 
