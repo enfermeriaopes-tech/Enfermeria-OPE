@@ -2366,6 +2366,21 @@ body {
     .metric-number { font-size: 1.9rem; }
     .metric-icon { width: 48px; height: 48px; font-size: 2rem; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   HONEYPOT — invisible field that bots fill in automatically.
+   Hidden in multiple ways so visual scrapers also miss it.
+═══════════════════════════════════════════════════════════════ */
+.hp-field {
+    position: absolute !important;
+    left: -10000px !important;
+    top: auto !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
 </style>
 </head>
 <body>
@@ -2653,6 +2668,11 @@ body {
         </div>
         <div class="auth-error" id="auth-error"></div>
         <form onsubmit="handleAuth(event)">
+            <!-- Honeypot: hidden from humans, bots fill this in -->
+            <div class="hp-field" aria-hidden="true">
+                <label for="hp-website">Website (no rellenar)</label>
+                <input type="text" id="hp-website" name="website" tabindex="-1" autocomplete="off">
+            </div>
             <div class="auth-field" id="name-field" style="display:none;">
                 <label>Nombre</label>
                 <div class="auth-input-wrapper">
@@ -3194,6 +3214,10 @@ body {
             <p>📬 Te responderemos en un plazo máximo de <strong>72 horas</strong> al correo que indiques.</p>
         </div>
         <form id="contact-form" class="contact-form" onsubmit="sendContactForm(event)">
+            <div class="hp-field" aria-hidden="true">
+                <label for="hp-company">Company (no rellenar)</label>
+                <input type="text" id="hp-company" name="company" tabindex="-1" autocomplete="off">
+            </div>
             <div class="contact-field">
                 <label>Nombre</label>
                 <input type="text" class="auth-input" id="contact-name" placeholder="Tu nombre" required style="padding:12px 14px;">
@@ -3235,6 +3259,10 @@ body {
         </div>
         <div class="auth-error" id="reset-error" style="display:none; margin-bottom:14px;"></div>
         <form onsubmit="handlePasswordReset(event)">
+            <div class="hp-field" aria-hidden="true">
+                <label for="hp-phone">Phone (no rellenar)</label>
+                <input type="text" id="hp-phone" name="phone" tabindex="-1" autocomplete="off">
+            </div>
             <div class="auth-field">
                 <label>Nueva contraseña <span style="color:var(--text-faint); font-weight:normal; font-size:0.78rem;">(mínimo 6 caracteres)</span></label>
                 <div class="auth-input-wrapper">
@@ -5041,14 +5069,17 @@ async function hydrateSubFromProfile() {
     try {
         const { data, error } = await supa
             .from('profiles')
-            .select('trial_start, is_paid, paid_at, name')
+            .select('trial_start, is_paid, paid_at, name, role')
             .eq('id', currentUser.id)
             .single();
         if (error) { console.warn('Could not load profile:', error.message); return; }
         if (!data) return;
-        sub.premium = !!data.is_paid;
+        // Admins always have premium (no payment required)
+        const isAdmin = data.role === 'admin';
+        sub.premium = isAdmin || !!data.is_paid;
         sub.purchasedAt = data.paid_at ? new Date(data.paid_at).getTime() : null;
         sub.trialStart = data.trial_start ? new Date(data.trial_start).getTime() : Date.now();
+        sub.isAdmin = isAdmin;
         saveSub();
         // Also update cached user name if the BD has a better one
         if (data.name && currentUser) currentUser.name = data.name;
@@ -5279,6 +5310,34 @@ async function removeDevice(deviceRowId) {
 // ═══════════════════════════════════════════════════════════════
 // AUTH (Supabase: email + password with verification)
 // ═══════════════════════════════════════════════════════════════
+
+// ── Anti-bot helpers (honeypot + minimum fill time) ─────────────
+// Track when the auth screen and contact form became visible so we
+// can reject submissions that happen suspiciously fast.
+const BOT_MIN_FILL_MS = 1500;  // anything faster than this is bot-like
+const _formSeenAt = {};
+
+function markFormSeen(key) {
+    if (!_formSeenAt[key]) _formSeenAt[key] = Date.now();
+}
+
+function isLikelyBot(formKey, honeypotIds = []) {
+    // 1) Any honeypot with a value → bot
+    for (const id of honeypotIds) {
+        const el = document.getElementById(id);
+        if (el && el.value && el.value.trim().length > 0) {
+            console.warn('[antibot] honeypot filled:', id);
+            return true;
+        }
+    }
+    // 2) Submission too fast after the form became visible → bot
+    const seenAt = _formSeenAt[formKey];
+    if (seenAt && (Date.now() - seenAt) < BOT_MIN_FILL_MS) {
+        console.warn('[antibot] form submitted too fast');
+        return true;
+    }
+    return false;
+}
 function switchAuthTab(tab) {
     document.getElementById('tab-login').classList.toggle('active', tab === 'login');
     document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
@@ -5314,6 +5373,14 @@ function togglePwd() {
 async function handleAuth(e) {
     e.preventDefault();
     hideAuthError();
+
+    // Anti-bot: silently drop if honeypot filled or form submitted too fast.
+    // We lie to the user (success-looking message) so bots don't learn to bypass.
+    if (isLikelyBot('auth', ['hp-website'])) {
+        showAuthSuccess('✓ Procesando solicitud...');
+        return;
+    }
+
     const email = document.getElementById('auth-email').value.trim();
     const pwd = document.getElementById('auth-password').value;
     const isSignup = document.getElementById('tab-signup').classList.contains('active');
@@ -5396,6 +5463,11 @@ async function onAuthSuccess(session) {
 }
 
 async function handleForgotPassword() {
+    // Anti-bot: silent drop on honeypot/too-fast
+    if (isLikelyBot('auth', ['hp-website'])) {
+        showAuthSuccess('✓ Si el email existe, recibirás un enlace.');
+        return;
+    }
     const email = (document.getElementById('auth-email').value || '').trim();
     if (!email || !email.includes('@')) {
         showAuthError('Introduce tu email en el campo de arriba y vuelve a pulsar "¿Olvidaste tu contraseña?".');
@@ -5425,11 +5497,17 @@ function showResetModal() {
     document.getElementById('reset-password').value = '';
     document.getElementById('reset-password2').value = '';
     document.getElementById('reset-error').style.display = 'none';
+    markFormSeen('reset');
     setTimeout(() => document.getElementById('reset-password').focus(), 100);
 }
 
 async function handlePasswordReset(e) {
     e.preventDefault();
+    if (isLikelyBot('reset', ['hp-phone'])) {
+        // Pretend success so a bot doesn't probe further
+        document.getElementById('reset-modal').style.display = 'none';
+        return;
+    }
     const pwd1 = document.getElementById('reset-password').value;
     const pwd2 = document.getElementById('reset-password2').value;
     const errEl = document.getElementById('reset-error');
@@ -5511,6 +5589,7 @@ function showLanding() {
 function showAuthFromLanding() {
     document.getElementById('landing-screen').style.display = 'none';
     document.getElementById('auth-screen').style.display = 'flex';
+    markFormSeen('auth');
     window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
@@ -6691,19 +6770,23 @@ function renderProfileSub() {
     const card = document.getElementById('profile-sub-card');
     if (!card) return;
     const status = getSubStatus();
+    const isAdmin = !!sub.isAdmin;
     if (status === 'premium') {
         const date = sub.purchasedAt ? new Date(sub.purchasedAt).toLocaleDateString('es-ES') : '—';
+        const label = isAdmin
+            ? '<div class="profile-sub-title">Administrador <span class="profile-sub-badge" style="background:#7c3aed;">ADMIN</span></div><div class="profile-sub-sub">Acceso completo permanente</div>'
+            : `<div class="profile-sub-title">Premium <span class="profile-sub-badge">ACTIVO</span></div><div class="profile-sub-sub">Adquirido el ${date}</div>`;
+        const body = isAdmin
+            ? 'Tu cuenta tiene rol de administrador. Tienes acceso completo a todas las funciones sin necesidad de pago.'
+            : 'Tienes acceso completo a todas las funciones de la app. ¡Gracias por apoyar el proyecto!';
         card.innerHTML = `
             <div class="profile-sub-card premium">
                 <div class="profile-sub-header">
-                    <div class="profile-sub-icon">👑</div>
-                    <div>
-                        <div class="profile-sub-title">Premium <span class="profile-sub-badge">ACTIVO</span></div>
-                        <div class="profile-sub-sub">Adquirido el ${date}</div>
-                    </div>
+                    <div class="profile-sub-icon">${isAdmin ? '👑' : '⭐'}</div>
+                    <div>${label}</div>
                 </div>
                 <div style="font-size:0.85rem; color:var(--text-muted); line-height:1.5;">
-                    Tienes acceso completo a todas las funciones de la app. ¡Gracias por apoyar el proyecto!
+                    ${body}
                 </div>
             </div>`;
     } else if (status === 'trial') {
@@ -6812,6 +6895,7 @@ function exportProgress() {
 
 function openContactForm() {
     switchScreen('contact');
+    markFormSeen('contact');
     // Prefill with current user data if available
     if (currentUser) {
         const nameEl = document.getElementById('contact-name');
@@ -6880,6 +6964,17 @@ async function forceSyncNow() {
 
 async function sendContactForm(event) {
     event.preventDefault();
+
+    // Anti-bot: silent drop. Show fake success so bots don't iterate.
+    if (isLikelyBot('contact', ['hp-company'])) {
+        const statusEl = document.getElementById('contact-status');
+        statusEl.className = 'contact-status success';
+        statusEl.style.display = 'block';
+        statusEl.textContent = '✓ Mensaje enviado correctamente.';
+        document.getElementById('contact-message').value = '';
+        return;
+    }
+
     const name = document.getElementById('contact-name').value.trim();
     const email = document.getElementById('contact-email').value.trim();
     const message = document.getElementById('contact-message').value.trim();
