@@ -2725,7 +2725,7 @@ body {
             <p>Incluye además el banco de <strong>preguntas del temario común obligatorio</strong>, imprescindible para la oposición.</p>
         </div>
 
-        <div class="section-label">Descarga tu material</div>
+        <div class="section-label">Descarga tu material <span style="font-size:0.65rem; color:var(--accent); background:var(--accent-soft); padding:2px 8px; border-radius:6px; letter-spacing:0.05em; margin-left:6px;">PREMIUM</span></div>
         <div class="download-card" onclick="downloadBank('enfermeria')">
             <div class="download-icon">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2736,7 +2736,7 @@ body {
             </div>
             <div class="download-body">
                 <h4>Banco Enfermería <span class="bank-tag enf">ENF</span></h4>
-                <p><span id="download-enf-count">500</span> preguntas con respuestas</p>
+                <p><span id="download-enf-count">500</span> preguntas en PDF</p>
             </div>
             <div class="download-chevron">›</div>
         </div>
@@ -2750,7 +2750,7 @@ body {
             </div>
             <div class="download-body">
                 <h4>Banco Temario Común <span class="bank-tag com">COM</span></h4>
-                <p><span id="download-com-count">0</span> preguntas con respuestas</p>
+                <p><span id="download-com-count">0</span> preguntas en PDF</p>
             </div>
             <div class="download-chevron">›</div>
         </div>
@@ -2945,6 +2945,7 @@ body {
             </div>
 
             <div id="test-active" style="display:none;">
+                <button class="back-link" onclick="exitActiveTest()">← Salir y volver</button>
                 <div class="test-header">
                     <h1 id="test-active-title">Examen en curso</h1>
                     <p id="test-counter">Pregunta 1 de 20</p>
@@ -5724,70 +5725,247 @@ function renderHome() {
 }
 
 function downloadBank(bank) {
+    // Premium-only: trial users see paywall instead of download
+    const status = getSubStatus();
+    if (status !== 'premium') {
+        const ok = confirm(
+            'La descarga de los bancos en alta calidad está incluida en Premium.\n\n' +
+            'Desbloquéalo con un único pago de 3,99 € y descarga ambos bancos en un PDF profesional con todas las respuestas.\n\n' +
+            '¿Quieres ver Premium ahora?'
+        );
+        if (ok) switchScreen('perfil');
+        return;
+    }
     const indices = getBankIndices(bank);
     if (indices.length === 0) {
         return alert('Este banco aún no tiene preguntas disponibles.');
     }
-    const bankName = bank === 'enfermeria' ? 'Banco Enfermeria' : 'Banco Temario Comun';
-    let content = `OPE ENFERMERIA OSAKIDETZA - ${bankName}\n`;
-    content += `Total de preguntas: ${indices.length}\n`;
-    content += `Generado: ${new Date().toLocaleDateString('es-ES')}\n`;
-    content += '='.repeat(70) + '\n\n';
+    const bankName = bank === 'enfermeria' ? 'Banco Enfermería' : 'Banco Temario Común';
+    const fileBase = bank === 'enfermeria' ? 'banco-enfermeria-osakidetza' : 'banco-temario-comun-osakidetza';
+    const today = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
 
-    indices.forEach((idx, i) => {
+    // Build a clean, printable HTML document. The browser opens it natively
+    // with full UTF-8 support (accents, ✓, ⚠ etc.) and lets the user save as
+    // PDF from the share/print menu on any device, including mobile.
+    const escapeHTML = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    const questionsHTML = indices.map((idx, i) => {
         const q = QUESTIONS[idx];
-        content += `${i + 1}. ${q.q}\n`;
-        ['A','B','C','D'].forEach(l => {
-            if (q.options[l]) content += `   ${l}) ${q.options[l]}\n`;
-        });
+        const optsHTML = ['A','B','C','D'].filter(l => q.options[l]).map(l => {
+            return `<div class="opt"><span class="letter">${l}</span><span>${escapeHTML(q.options[l])}</span></div>`;
+        }).join('');
 
-        // Handle answer (single / multi-sindicato / extra sources)
-        const hasMultiSources = q.answers || q.extraAnswers;
-        if (hasMultiSources) {
-            // Collect all (source, letter) pairs
+        // Determine correct answer(s) display
+        let answerBlock = '';
+        const hasMulti = q.answers || q.extraAnswers;
+        if (hasMulti) {
             const allSources = [];
-            if (q.answers) {
-                for (const [src, letter] of Object.entries(q.answers)) allSources.push([src, letter]);
-            }
-            if (q.extraAnswers) {
-                for (const [src, letter] of Object.entries(q.extraAnswers)) allSources.push([src, letter]);
-            }
+            if (q.answers) for (const [src, letter] of Object.entries(q.answers)) allSources.push([src, letter]);
+            if (q.extraAnswers) for (const [src, letter] of Object.entries(q.extraAnswers)) allSources.push([src, letter]);
             const uniqueLetters = new Set(allSources.map(([_, l]) => l));
             if (uniqueLetters.size === 1) {
                 const letter = allSources[0][1];
-                const srcList = allSources.map(([s, _]) => s).join(', ');
-                content += `   ✓ Respuesta correcta: ${letter}) ${q.options[letter]}\n`;
-                content += `      Según: ${srcList}\n`;
+                const srcs = allSources.map(([s, _]) => s).join(', ');
+                answerBlock = `
+                    <div class="answer">
+                        <strong>✓ Respuesta correcta:</strong> ${letter}) ${escapeHTML(q.options[letter])}
+                        <div class="srcs">Según: ${escapeHTML(srcs)}</div>
+                    </div>`;
             } else {
-                content += `   ⚠ RESPUESTAS SEGÚN FUENTE:\n`;
                 const byLetter = {};
                 for (const [src, letter] of allSources) {
                     if (!byLetter[letter]) byLetter[letter] = [];
                     byLetter[letter].push(src);
                 }
-                for (const [letter, srcs] of Object.entries(byLetter)) {
-                    content += `      ${letter}) ${q.options[letter]}\n`;
-                    content += `         Según: ${srcs.join(', ')}\n`;
-                }
+                const lines = Object.entries(byLetter).map(([letter, srcs]) => `
+                    <div class="alt-line">
+                        <strong>${letter})</strong> ${escapeHTML(q.options[letter])}
+                        <div class="srcs">Según: ${escapeHTML(srcs.join(', '))}</div>
+                    </div>`).join('');
+                answerBlock = `
+                    <div class="answer multi">
+                        <strong>⚠ Respuestas según la fuente:</strong>
+                        ${lines}
+                    </div>`;
             }
         } else if (q.answer) {
-            content += `   ✓ Respuesta correcta: ${q.answer}) ${q.options[q.answer]}\n`;
+            answerBlock = `<div class="answer">
+                <strong>✓ Respuesta correcta:</strong> ${q.answer}) ${escapeHTML(q.options[q.answer])}
+            </div>`;
         }
-        // Add note if present
-        if (q.note) {
-            content += `   ⚠ Nota: ${q.note}\n`;
-        }
-        content += '\n';
-    });
 
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const noteBlock = q.note ? `<div class="note">⚠ ${escapeHTML(q.note)}</div>` : '';
+
+        return `
+        <div class="q">
+            <div class="qnum">${i + 1}</div>
+            <div class="qbody">
+                <div class="qtxt">${escapeHTML(q.q)}</div>
+                <div class="opts">${optsHTML}</div>
+                ${answerBlock}
+                ${noteBlock}
+            </div>
+        </div>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${bankName} · OPE Enfermería OSAKIDETZA</title>
+<style>
+  @page { size: A4; margin: 18mm; }
+  *,*::before,*::after { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+    color: #0f2a23;
+    background: #fff;
+    margin: 0;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 800px; margin: 0 auto; padding: 24px 18px; }
+  .cover {
+    border-bottom: 3px solid #0d9488;
+    padding-bottom: 18px;
+    margin-bottom: 24px;
+    page-break-after: avoid;
+  }
+  .cover .eyebrow { font-size: 0.78rem; letter-spacing: 0.12em; color: #0d9488; font-weight: 700; text-transform: uppercase; }
+  .cover h1 { font-size: 1.8rem; font-weight: 800; margin: 6px 0 4px; color: #0f2a23; line-height: 1.15; }
+  .cover .meta { font-size: 0.88rem; color: #5c7670; }
+  .toolbar {
+    background: #f7faf8;
+    border: 1px solid #dce7df;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-size: 0.9rem;
+  }
+  .toolbar button {
+    background: #0d9488; color: white;
+    padding: 8px 16px; border: none; border-radius: 8px;
+    font-weight: 700; cursor: pointer; font-size: 0.9rem;
+  }
+  .q {
+    display: flex;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid #edf5f0;
+    page-break-inside: avoid;
+  }
+  .q:last-child { border-bottom: none; }
+  .qnum {
+    flex-shrink: 0;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: #0d9488; color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 0.85rem;
+  }
+  .qbody { flex: 1; min-width: 0; }
+  .qtxt { font-weight: 600; color: #0f2a23; margin-bottom: 8px; }
+  .opts { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+  .opt {
+    display: flex; gap: 8px; align-items: flex-start;
+    background: #f7faf8;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.92rem;
+  }
+  .opt .letter {
+    flex-shrink: 0;
+    min-width: 22px; height: 22px;
+    border-radius: 50%;
+    background: #dce7df; color: #5c7670;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.78rem;
+  }
+  .answer {
+    background: #dcfce7;
+    border-left: 4px solid #16a34a;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: #14532d;
+    margin-top: 4px;
+  }
+  .answer.multi {
+    background: #fef9c3;
+    border-left-color: #ca8a04;
+    color: #713f12;
+  }
+  .answer .srcs, .alt-line .srcs {
+    font-size: 0.78rem;
+    color: #5c7670;
+    margin-top: 2px;
+  }
+  .alt-line {
+    margin-top: 6px;
+    padding-left: 8px;
+  }
+  .note {
+    background: #fef9c3;
+    border: 1px solid #fbbf24;
+    color: #713f12;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    margin-top: 6px;
+  }
+  .footer {
+    margin-top: 30px;
+    text-align: center;
+    color: #8fa39d;
+    font-size: 0.78rem;
+    border-top: 1px solid #dce7df;
+    padding-top: 16px;
+  }
+  @media print {
+    .toolbar { display: none; }
+    body { background: #fff; }
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="toolbar">
+      <span style="flex:1;">📄 Vista lista para guardar como PDF o imprimir.</span>
+      <button onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+    </div>
+    <div class="cover">
+      <div class="eyebrow">OPE Enfermería · OSAKIDETZA 2026</div>
+      <h1>${bankName}</h1>
+      <div class="meta">${indices.length} preguntas · Generado el ${today}</div>
+    </div>
+    ${questionsHTML}
+    <div class="footer">
+      OPE Enfermería OSAKIDETZA · Bancos oficiales 2023, 2024 y 2025<br>
+      Fuentes: sindicatos MAD, UGT, SATSE, LAB, SPLAY, ESK · Otros: EIRyOPESEnfermeria
+    </div>
+  </div>
+</body>
+</html>`;
+
+    // Open in a new window/tab; the user can hit "Print → Save as PDF"
+    // (works on iOS Safari, Android Chrome, desktop)
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const fileName = bank === 'enfermeria' ? 'banco-enfermeria-osakidetza.txt' : 'banco-temario-comun-osakidetza.txt';
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
+    const win = window.open(url, '_blank');
+    if (!win) {
+        // Pop-up blocked → fallback to direct download
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${fileBase}.html`;
+        a.click();
+        alert('El navegador bloqueó la apertura. Se ha descargado el archivo HTML — ábrelo y usa "Imprimir → Guardar como PDF".');
+    }
+    // Free the URL after a few seconds; the new tab keeps a reference
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -6332,6 +6510,22 @@ function testNav(dir) {
     renderTestQuestion();
 }
 
+function exitActiveTest() {
+    // Used by the "← Salir y volver" link inside an active test or simulacro
+    const inSim = isSimulacro;
+    const msg = inSim
+        ? '¿Salir del simulacro? Perderás todo el progreso del simulacro actual.'
+        : '¿Salir del examen? Perderás las respuestas que llevas hechas.';
+    if (!confirm(msg)) return;
+    stopSimTimer();
+    isSimulacro = false;
+    testQuestions = [];
+    testAnswers = {};
+    testCurrentIdx = 0;
+    showEstudiaHub();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function finishTest(autoFinish = false) {
     if (!autoFinish && !confirm('¿Finalizar el test y ver resultados?')) return;
     stopSimTimer();
@@ -6613,10 +6807,8 @@ function exportProgress() {
 
 // ═══════════════════════════════════════════════════════════════
 // CONTACT FORM
+// Submissions are inserted into public.contact_messages in Supabase.
 // ═══════════════════════════════════════════════════════════════
-// Formspree endpoint — reemplaza con tu ID real tras crear la cuenta en formspree.io
-// Instrucciones al final del archivo
-const CONTACT_ENDPOINT = 'https://formspree.io/f/YOUR_FORM_ID';
 
 function openContactForm() {
     switchScreen('contact');
@@ -6695,12 +6887,10 @@ async function sendContactForm(event) {
     const submitBtn = document.getElementById('contact-submit');
 
     if (!name || !email || !message) return;
-
-    // Check if endpoint is configured
-    if (CONTACT_ENDPOINT.includes('YOUR_FORM_ID')) {
+    if (message.length < 10) {
         statusEl.className = 'contact-status error';
         statusEl.style.display = 'block';
-        statusEl.textContent = '⚠ El formulario aún no está configurado. Contacta con el administrador.';
+        statusEl.textContent = '⚠ El mensaje es demasiado corto. Cuéntanos un poco más.';
         return;
     }
 
@@ -6709,30 +6899,24 @@ async function sendContactForm(event) {
     statusEl.style.display = 'none';
 
     try {
-        const response = await fetch(CONTACT_ENDPOINT, {
-            method: 'POST',
-            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name: name,
-                email: email,
-                message: message,
-                _subject: `[OPE Enfermería] Consulta de ${name}`,
-                _replyto: email
-            })
+        const { error } = await supa.from('contact_messages').insert({
+            user_id: currentUser?.id || null,
+            name: name,
+            email: email,
+            message: message
         });
-        if (response.ok) {
-            statusEl.className = 'contact-status success';
-            statusEl.style.display = 'block';
-            statusEl.innerHTML = '✓ Mensaje enviado correctamente. Te responderemos en un plazo máximo de 72 horas.';
-            document.getElementById('contact-message').value = '';
-            submitBtn.textContent = 'Enviar otro mensaje';
-        } else {
-            throw new Error('Error del servidor');
-        }
+        if (error) throw error;
+
+        statusEl.className = 'contact-status success';
+        statusEl.style.display = 'block';
+        statusEl.innerHTML = '✓ Mensaje enviado correctamente. Te responderemos en un plazo máximo de 72 horas al correo indicado.';
+        document.getElementById('contact-message').value = '';
+        submitBtn.textContent = 'Enviar otro mensaje';
     } catch (err) {
+        console.error('contact form error:', err);
         statusEl.className = 'contact-status error';
         statusEl.style.display = 'block';
-        statusEl.textContent = '✗ Error al enviar el mensaje. Por favor, inténtalo de nuevo o escríbenos directamente a enfermeria.opes@gmail.com';
+        statusEl.textContent = '✗ No se pudo enviar el mensaje. Inténtalo de nuevo en unos minutos o escríbenos directamente a enfermeria.opes@gmail.com';
         submitBtn.textContent = 'Enviar mensaje';
     } finally {
         submitBtn.disabled = false;
