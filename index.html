@@ -2647,6 +2647,11 @@ body {
     <footer class="landing-footer">
         <p>OPE Enfermería OSAKIDETZA · Preparación para la oposición 2026</p>
         <p style="opacity:0.6; margin-top:4px;">Bancos de preguntas oficiales · Fuente: sindicatos MAD, UGT, SATSE, LAB, S PLAY y ESK, otros: EIRyOPESEnfermeria</p>
+        <p style="margin-top:14px; font-size:0.78rem; display:flex; gap:14px; justify-content:center; flex-wrap:wrap;">
+            <a href="#" onclick="event.preventDefault(); openLegalDocFromLanding('terms');" style="color:var(--text-muted); text-decoration:underline;">Términos y condiciones</a>
+            <a href="#" onclick="event.preventDefault(); openLegalDocFromLanding('privacy');" style="color:var(--text-muted); text-decoration:underline;">Política de privacidad</a>
+            <a href="#" onclick="event.preventDefault(); openLegalDocFromLanding('cookies');" style="color:var(--text-muted); text-decoration:underline;">Política de cookies</a>
+        </p>
     </footer>
 </div>
 
@@ -3157,6 +3162,33 @@ body {
                 <div class="settings-chevron">›</div>
             </div>
         </div>
+        <div class="section-label">Información legal</div>
+        <div class="settings-group">
+            <div class="settings-row" onclick="openLegalDoc('terms')">
+                <div class="settings-icon">📜</div>
+                <div class="settings-text">
+                    <h4>Términos y condiciones</h4>
+                    <p>Reglas de uso de la aplicación</p>
+                </div>
+                <div class="settings-chevron">›</div>
+            </div>
+            <div class="settings-row" onclick="openLegalDoc('privacy')">
+                <div class="settings-icon">🔒</div>
+                <div class="settings-text">
+                    <h4>Política de privacidad</h4>
+                    <p>Cómo tratamos tus datos</p>
+                </div>
+                <div class="settings-chevron">›</div>
+            </div>
+            <div class="settings-row" onclick="openLegalDoc('cookies')">
+                <div class="settings-icon">🍪</div>
+                <div class="settings-text">
+                    <h4>Política de cookies</h4>
+                    <p>Información sobre cookies y almacenamiento</p>
+                </div>
+                <div class="settings-chevron">›</div>
+            </div>
+        </div>
 
         <p style="text-align:center; color:var(--text-faint); font-size:0.8rem; margin-top:20px;">OPE Enfermería OSAKIDETZA · v3.0</p>
         <p id="sync-indicator" style="text-align:center; color:var(--text-faint); font-size:0.75rem; margin-top:4px; display:none;"></p>
@@ -3242,6 +3274,15 @@ body {
             <div id="contact-status" class="contact-status" style="display:none;"></div>
             <button type="submit" class="auth-btn-primary" id="contact-submit">Enviar mensaje</button>
         </form>
+    </div>
+
+    <!-- ─── LEGAL DOCS ─── -->
+    <div id="screen-legal" class="screen">
+        <button class="back-link" onclick="switchScreen('perfil')">← Volver al perfil</button>
+        <div class="page-header">
+            <h1 id="legal-title">Documento legal</h1>
+        </div>
+        <div class="card" id="legal-content" style="line-height:1.5; color:var(--text); font-size:0.95rem;"></div>
     </div>
 
     <!-- ─── DISPOSITIVOS ─── -->
@@ -5701,7 +5742,7 @@ function switchScreen(name) {
     if (screen) screen.classList.add('active');
 
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    const tabMap = { home:'home', estudia:'estudia', stats:'stats', perfil:'perfil', prefs:'perfil', contact:'perfil', devices:'perfil' };
+    const tabMap = { home:'home', estudia:'estudia', stats:'stats', perfil:'perfil', prefs:'perfil', contact:'perfil', devices:'perfil', legal:'perfil' };
     const activeTab = tabMap[name];
     if (activeTab) {
         const navBtn = document.querySelector(`.nav-item[data-tab="${activeTab}"]`);
@@ -7106,6 +7147,345 @@ async function sendContactForm(event) {
     } finally {
         submitBtn.disabled = false;
     }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// LEGAL DOCUMENTS (terms, privacy, cookies)
+// Loaded as JS strings (no fetch needed) so the docs work even
+// offline / inside the GitHub Pages static deployment.
+// ═══════════════════════════════════════════════════════════════
+const LEGAL_DOCS = {
+    terms: { title: 'Términos y Condiciones', md: `# Términos y Condiciones
+
+**Última actualización:** 14 de mayo de 2026
+
+Estos términos y condiciones regulan el uso de la aplicación **OPE Enfermería OSAKIDETZA** (en adelante, "la aplicación") por parte de los usuarios. Al registrarse o utilizar la aplicación, el usuario acepta expresamente estos términos en su totalidad.
+
+## 1. Descripción del servicio
+
+La aplicación es una herramienta digital de apoyo al estudio para las oposiciones de enfermería del Servicio Vasco de Salud (Osakidetza), basada en bancos de preguntas recopilados con fines exclusivamente educativos.
+
+Incluye:
+- Banco específico de enfermería.
+- Banco de temario común.
+- Modos de estudio: repaso libre, examen, simulacro general.
+- Estadísticas personales y sincronización entre dispositivos.
+- Descarga de los bancos en formato PDF (función Premium).
+
+## 2. Registro de usuario
+
+Para acceder a las funciones personalizadas es necesario registrarse facilitando una dirección de correo electrónico válida y una contraseña. El usuario es responsable de:
+- La veracidad de los datos proporcionados.
+- Mantener la confidencialidad de su contraseña.
+- Cualquier actividad realizada desde su cuenta.
+
+## 3. Uso permitido
+
+El usuario se compromete a:
+- Utilizar la aplicación exclusivamente con fines personales y de preparación.
+- No compartir su cuenta con terceros (la aplicación limita técnicamente el uso a 2 dispositivos por cuenta).
+- No descompilar, copiar, redistribuir o utilizar la aplicación con fines comerciales.
+- No introducir contenido malicioso, ni intentar vulnerar la seguridad de la plataforma.
+
+## 4. Periodo de prueba y suscripción Premium
+
+### Periodo de prueba
+Tras el registro, el usuario dispone de un **periodo de prueba gratuito de 24 horas** desde el alta de la cuenta, durante el cual puede acceder a todas las funciones.
+
+### Pago único Premium
+Tras el periodo de prueba, el acceso completo a la aplicación requiere un **pago único de 3,99 €** (IVA incluido cuando aplique).
+
+- Es un **pago único**, **no es una suscripción recurrente**.
+- El acceso Premium tiene **carácter permanente** vinculado a la cuenta de usuario.
+- Los pagos se procesan a través de **Stripe**, plataforma certificada PCI DSS. La aplicación no almacena datos de tarjeta.
+
+### Política de devoluciones
+De conformidad con el **artículo 103.m) del Real Decreto Legislativo 1/2007** (TRLGDCU), el usuario reconoce que el contenido digital se suministra de forma inmediata e íntegra desde el momento del pago, por lo que **renuncia expresamente al derecho de desistimiento de 14 días** una vez accedida la aplicación con la cuenta Premium.
+
+No obstante, en caso de fallo grave del servicio o imposibilidad de acceso atribuible al titular, el usuario podrá solicitar el reembolso escribiendo a \`enfermeria.opes@gmail.com\` en un plazo máximo de 14 días desde el pago.
+
+## 5. Limitación de dispositivos
+
+Cada cuenta puede tener un máximo de **2 dispositivos activos simultáneamente**. Si el usuario quiere usar la aplicación en un tercer dispositivo, debe eliminar uno de los dispositivos existentes desde la sección "Dispositivos activos" de su perfil.
+
+## 6. Disponibilidad del servicio
+
+El equipo titular se esfuerza por mantener la aplicación disponible las 24 horas, pero **no garantiza un servicio ininterrumpido**. Pueden producirse interrupciones por mantenimiento, actualizaciones o causas técnicas atribuibles a los proveedores de infraestructura.
+
+## 7. Limitación de responsabilidad
+
+### 7.1 Naturaleza del contenido
+
+- El contenido de la aplicación tiene **carácter exclusivamente educativo, divulgativo y orientativo**.
+- Las preguntas, respuestas y notas publicadas son **una recopilación elaborada de fuentes de terceros**, incluidos sindicatos (MAD, UGT, SATSE, LAB, SPLAY, ESK) y otras entidades (EIRyOPESEnfermeria). **El equipo titular no es la autoridad oficial** sobre dichas respuestas.
+- La aplicación **NO es un canal oficial** de Osakidetza, del Departamento de Salud del Gobierno Vasco, ni de ningún sindicato u organismo público.
+
+### 7.2 El equipo titular NO garantiza
+
+De forma expresa, el equipo titular **NO garantiza ni se responsabiliza** de:
+
+1. Que las preguntas y respuestas publicadas coincidan con las consideradas correctas u oficiales por Osakidetza el día del examen.
+2. Que la información esté libre de errores, erratas, omisiones o discrepancias entre fuentes.
+3. Que las interpretaciones atribuidas a sindicatos u otras entidades correspondan exactamente con su posición oficial actualizada.
+4. Que el uso de la aplicación contribuya a la superación del examen oficial o a la obtención de plaza.
+5. Que el contenido esté permanentemente actualizado tras cambios normativos, científicos o de criterio editorial.
+6. La continuidad, disponibilidad o ausencia de fallos en el servicio.
+7. La compatibilidad de la aplicación con todos los dispositivos, navegadores o sistemas operativos.
+
+### 7.3 Decisiones del usuario
+
+**Las decisiones que el usuario tome basándose en el contenido de la aplicación son de su entera y exclusiva responsabilidad.** Cualquier respuesta, opinión, interpretación o material consultado debe ser **contrastado por el propio usuario** con las fuentes oficiales antes de presentarse al examen o tomar cualquier decisión profesional, académica o personal.
+
+El usuario se compromete a verificar de forma independiente la información obtenida en la aplicación cuando esta vaya a influir en una decisión relevante.
+
+## 8. Propiedad intelectual
+
+El diseño, código, estructura, agrupación y presentación del material de la aplicación son propiedad del equipo titular. Las preguntas y respuestas referenciadas a sindicatos u otras entidades pertenecen a sus respectivos titulares y se utilizan con fines educativos.
+
+Queda prohibida la reproducción, distribución pública o transformación del contenido sin autorización expresa, salvo para uso personal y privado del usuario.
+
+## 9. Suspensión y cancelación
+
+El equipo titular podrá suspender o cancelar la cuenta de un usuario, sin previo aviso, en caso de:
+- Uso fraudulento o abusivo de la aplicación.
+- Incumplimiento grave de estos términos.
+- Detección de actividad bot o automatizada.
+- Reembolso (chargeback) no autorizado.
+
+El usuario puede solicitar la cancelación de su cuenta en cualquier momento escribiendo a \`enfermeria.opes@gmail.com\`.
+
+## 10. Modificaciones
+
+El equipo titular se reserva el derecho a modificar estos términos en cualquier momento. Las modificaciones serán notificadas a través de la aplicación. El uso continuado tras la modificación implica la aceptación de los nuevos términos.
+
+## 11. Legislación aplicable
+
+Estos términos se rigen por la legislación española. Para cualquier controversia, las partes se someten a los Juzgados y Tribunales del domicilio del usuario consumidor cuando este sea persona física, conforme a la legislación vigente.
+
+## 12. Contacto
+
+Para cualquier consulta sobre estos términos: \`enfermeria.opes@gmail.com\`
+` },
+    privacy: { title: 'Política de Privacidad', md: `# Política de Privacidad
+
+**Última actualización:** 14 de mayo de 2026
+
+En cumplimiento del **Reglamento (UE) 2016/679 (RGPD)** y de la **Ley Orgánica 3/2018 de Protección de Datos y garantía de los derechos digitales (LOPDGDD)**, te informamos sobre el tratamiento de tus datos personales en la aplicación **OPE Enfermería OSAKIDETZA**.
+
+## 1. Responsable del tratamiento
+
+- **Equipo titular:** Equipo OPE Enfermería
+- **Email de contacto:** \`enfermeria.opes@gmail.com\`
+
+## 2. Datos que recopilamos
+
+Cuando te registras y utilizas la aplicación, recogemos los siguientes datos:
+
+### 2.1 Datos que tú nos facilitas
+- **Email** (al registrarte).
+- **Contraseña** (almacenada cifrada, nunca en texto plano).
+- **Nombre** (al registrarte).
+- **Mensajes** que envías a través del formulario de contacto.
+
+### 2.2 Datos generados por el uso de la aplicación
+- **Progreso de estudio**: respuestas a preguntas, preguntas guardadas, marcadas para repasar, estadísticas, exámenes realizados.
+- **Información de dispositivo**: identificador único del navegador, sistema operativo y fecha del último acceso (para limitar el uso a 2 dispositivos por cuenta).
+- **Datos de pago**: si compras Premium, **NO almacenamos datos de tarjeta**. La pasarela de pago externa los gestiona y solo guardamos un identificador de transacción y la fecha de pago.
+
+### 2.3 Cookies y almacenamiento local
+La aplicación utiliza cookies y almacenamiento local del navegador para mantener tu sesión, guardar tu progreso y recordar tus preferencias. Consulta más detalles en nuestra **Política de Cookies**.
+
+## 3. Finalidad del tratamiento
+
+Utilizamos tus datos para:
+- Crear y mantener tu cuenta de usuario.
+- Sincronizar tu progreso entre dispositivos.
+- Procesar tu pago Premium.
+- Enviarte emails de verificación y recuperación de contraseña.
+- Responder a tus mensajes de contacto.
+- Prevenir fraude y abuso (control de dispositivos, detección de bots).
+- Cumplir obligaciones legales aplicables.
+
+## 4. Base legal
+
+- **Ejecución del contrato** (art. 6.1.b RGPD) para la prestación del servicio y procesamiento del pago.
+- **Consentimiento** (art. 6.1.a RGPD) para cookies opcionales y análisis.
+- **Interés legítimo** (art. 6.1.f RGPD) para prevención de fraude.
+
+## 5. Plazo de conservación
+
+- Mientras tu cuenta esté activa.
+- Hasta 5 años tras el cierre de cuenta para datos relacionados con el pago, conforme a la legislación fiscal.
+- Los mensajes de contacto se conservan mientras sean necesarios para responderte.
+
+## 6. Aplicaciones y servicios de terceros
+
+Para prestar el servicio utilizamos aplicaciones y proveedores tecnológicos de terceros que pueden tratar tus datos en nuestro nombre, entre ellos: servicios de autenticación y base de datos, pasarela de pago, protección anti-bot y hospedaje del frontend. Estos terceros aplican sus propias políticas de privacidad y, cuando corresponde, transferencias internacionales bajo cláusulas contractuales tipo conforme al RGPD.
+
+## 7. Derechos del usuario
+
+Como usuario tienes derecho a acceder, rectificar y suprimir tus datos, así como a otros derechos reconocidos por el RGPD (limitación, portabilidad, oposición y retirada del consentimiento). Puedes ejercerlos escribiendo a \`enfermeria.opes@gmail.com\`. También puedes reclamar ante la Agencia Española de Protección de Datos ([www.aepd.es](https://www.aepd.es)).
+
+## 8. Seguridad
+
+Implementamos medidas técnicas y organizativas para proteger tus datos:
+- Conexiones cifradas (HTTPS).
+- Contraseñas hasheadas (no almacenadas en texto plano).
+- Acceso a la base de datos restringido por políticas de seguridad.
+- Protección anti-bot.
+- Sin almacenamiento de datos de tarjeta (delegado en la pasarela de pago).
+
+## 9. Menores de edad
+
+La aplicación está dirigida a personas mayores de 16 años. No recogemos conscientemente datos de menores de esa edad. Si detectamos que se ha registrado un menor, eliminaremos la cuenta.
+
+## 10. Cambios en la política
+
+Podemos actualizar esta política periódicamente. Te avisaremos en la aplicación si los cambios son sustanciales.
+` },
+    cookies: { title: 'Política de Cookies', md: `# Política de Cookies
+
+**Última actualización:** 14 de mayo de 2026
+
+Esta política describe cómo la aplicación **OPE Enfermería OSAKIDETZA** utiliza cookies y tecnologías similares (localStorage, sessionStorage).
+
+## ¿Qué son las cookies?
+
+Las cookies son pequeños archivos de texto que un sitio web almacena en tu dispositivo para recordar información entre visitas (sesión, preferencias, etc.). El **localStorage** es similar pero con mayor capacidad y sin caducidad automática.
+
+## Uso de cookies en la aplicación
+
+La aplicación utiliza cookies y almacenamiento local con dos finalidades principales:
+
+- **Funcionamiento técnico** de la aplicación: mantener tu sesión iniciada, guardar tu progreso y tus preferencias (tema, tamaño de fuente), y limitar el uso a 2 dispositivos por cuenta.
+- **Servicios de terceros**: pasarela de pago durante la compra Premium, protección anti-bot y otros servicios técnicos necesarios para la prestación del servicio.
+
+## Gestión de cookies
+
+Puedes desactivar las cookies desde la configuración de tu navegador. Sin embargo, **algunas funciones esenciales** (sesión, sincronización de progreso) **no funcionarán** si las desactivas.
+
+Para borrar el almacenamiento local de la aplicación:
+1. Cierra sesión desde Perfil.
+2. En tu navegador: ajustes → privacidad → borrar datos de navegación → datos del sitio.
+
+Esta acción borra tu progreso local pero **no** los datos almacenados en nuestros servidores. Si quieres eliminar tus datos del servidor, consulta la **Política de Privacidad**.
+
+## Cambios en la política
+
+Si en el futuro añadimos herramientas de analítica, publicidad o seguimiento, lo notificaremos y solicitaremos consentimiento expreso conforme exige el RGPD y la Directiva ePrivacy.
+
+## Contacto
+
+Para cualquier consulta: \`enfermeria.opes@gmail.com\`
+` }
+};
+
+
+// Show a legal doc from the landing footer (without forcing the user to log in).
+// We show it inline as a fixed overlay since the user has no app context yet.
+function openLegalDocFromLanding(key) {
+    const doc = LEGAL_DOCS[key];
+    if (!doc) return;
+    let modal = document.getElementById('legal-landing-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'legal-landing-modal';
+        modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:300; display:flex; align-items:center; justify-content:center; padding:20px;';
+        modal.innerHTML = '<div style="background:var(--surface); border-radius:var(--radius-xl); max-width:760px; width:100%; max-height:90vh; overflow-y:auto; padding:24px; box-shadow:var(--shadow-lg);"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;"><h2 id="legal-modal-title" style="font-family:var(--font-display); font-size:1.2rem; font-weight:800;"></h2><button onclick="closeLegalLandingModal()" style="background:transparent; border:none; font-size:1.6rem; cursor:pointer; color:var(--text-muted);">×</button></div><div id="legal-modal-body"></div></div>';
+        document.body.appendChild(modal);
+        modal.addEventListener('click', e => { if (e.target === modal) closeLegalLandingModal(); });
+    }
+    document.getElementById('legal-modal-title').textContent = doc.title;
+    document.getElementById('legal-modal-body').innerHTML = mdToHtml(doc.md);
+    modal.style.display = 'flex';
+}
+function closeLegalLandingModal() {
+    const m = document.getElementById('legal-landing-modal');
+    if (m) m.style.display = 'none';
+}
+
+function openLegalDoc(key) {
+    const doc = LEGAL_DOCS[key];
+    if (!doc) return;
+    document.getElementById('legal-title').textContent = doc.title;
+    document.getElementById('legal-content').innerHTML = mdToHtml(doc.md);
+    switchScreen('legal');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+function mdToHtml(md) {
+    // Tiny markdown renderer — handles the subset we use:
+    // headings (# ## ###), bold **x**, italic *x*, inline code `x`,
+    // links [text](url), bullet lists, blockquotes, paragraphs.
+    const escape = (s) => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    const lines = md.split(/\r?\n/);
+    let html = '';
+    let inList = false;
+    let inTable = false;
+    let tableRows = [];
+
+    function flushList() { if (inList) { html += '</ul>'; inList = false; } }
+    function flushTable() {
+        if (inTable && tableRows.length) {
+            html += '<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; margin:8px 0;">';
+            tableRows.forEach((row, i) => {
+                const tag = i === 0 ? 'th' : 'td';
+                html += '<tr>' + row.map(c =>
+                    `<${tag} style="padding:8px 10px; border:1px solid var(--border); text-align:left; font-size:0.88rem;">${inlineFmt(c)}</${tag}>`
+                ).join('') + '</tr>';
+            });
+            html += '</table></div>';
+        }
+        inTable = false;
+        tableRows = [];
+    }
+
+    function inlineFmt(s) {
+        s = escape(s);
+        // bold
+        s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        // italic
+        s = s.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
+        // inline code
+        s = s.replace(/`([^`]+)`/g, '<code style="background:var(--bg-alt); padding:2px 6px; border-radius:4px; font-size:0.88em;">$1</code>');
+        // links
+        s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:underline;">$1</a>');
+        return s;
+    }
+
+    for (let raw of lines) {
+        const line = raw.trimEnd();
+        // table row?
+        if (/^\s*\|.*\|\s*$/.test(line)) {
+            const cells = line.trim().slice(1, -1).split('|').map(s => s.trim());
+            // skip separator rows
+            if (cells.every(c => /^[:\-\s]+$/.test(c))) continue;
+            if (!inTable) { flushList(); inTable = true; tableRows = []; }
+            tableRows.push(cells);
+            continue;
+        } else if (inTable) {
+            flushTable();
+        }
+
+        if (line.startsWith('### ')) { flushList(); html += `<h3 style="font-family:var(--font-display); font-size:1.1rem; font-weight:700; margin:18px 0 8px; color:var(--text);">${inlineFmt(line.slice(4))}</h3>`; }
+        else if (line.startsWith('## ')) { flushList(); html += `<h2 style="font-family:var(--font-display); font-size:1.25rem; font-weight:800; margin:22px 0 10px; color:var(--text); border-bottom:1px solid var(--border); padding-bottom:6px;">${inlineFmt(line.slice(3))}</h2>`; }
+        else if (line.startsWith('# ')) { flushList(); html += `<h1 style="font-family:var(--font-display); font-size:1.6rem; font-weight:800; margin:0 0 14px; color:var(--text);">${inlineFmt(line.slice(2))}</h1>`; }
+        else if (line.startsWith('> ')) { flushList(); html += `<blockquote style="border-left:3px solid var(--accent); padding:8px 14px; margin:10px 0; color:var(--text-muted); background:var(--accent-soft); border-radius:0 8px 8px 0;">${inlineFmt(line.slice(2))}</blockquote>`; }
+        else if (/^[-*] /.test(line)) {
+            if (!inList) { html += '<ul style="margin:8px 0 8px 22px; line-height:1.6;">'; inList = true; }
+            html += `<li>${inlineFmt(line.replace(/^[-*] /, ''))}</li>`;
+        }
+        else if (/^\d+\. /.test(line)) {
+            if (!inList) { html += '<ol style="margin:8px 0 8px 22px; line-height:1.6;">'; inList = true; }
+            html += `<li>${inlineFmt(line.replace(/^\d+\. /, ''))}</li>`;
+        }
+        else if (line.trim() === '') { flushList(); }
+        else { flushList(); html += `<p style="margin:8px 0; line-height:1.6; color:var(--text);">${inlineFmt(line)}</p>`; }
+    }
+    flushList();
+    flushTable();
+    return html;
 }
 
 // ═══════════════════════════════════════════════════════════════
