@@ -842,6 +842,7 @@ body {
 .q-action-btn.saved { background: var(--warning-soft); color: #a16207; border-color: var(--warning); }
 .q-action-btn.doubt { background: #ede9fe; color: #6d28d9; border-color: #a78bfa; }
 [data-theme="dark"] .q-action-btn.doubt { background: #2d1b4d; color: #c4b5fd; }
+.q-action-btn.bookmarked { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
 .q-action-btn.reset:hover { border-color: var(--accent); color: var(--accent); }
 
 .question-text {
@@ -2475,7 +2476,7 @@ body {
                 <div class="landing-nav-tag">OSAKIDETZA</div>
             </div>
         </div>
-        <button class="landing-nav-btn" onclick="showAuthFromLanding()">Iniciar sesión</button>
+        <button class="landing-nav-btn" onclick="showAuthFromLanding('login')">Iniciar sesión</button>
     </nav>
 
     <!-- Hero -->
@@ -2484,11 +2485,14 @@ body {
             <h1>Prepara tu OPE de Enfermería<br>para OSAKIDETZA 2026</h1>
             <p class="landing-hero-sub">Banco específico de enfermería + temario común con 700 preguntas oficiales. Respuestas contrastadas por los 6 sindicatos.</p>
             <div class="landing-hero-cta">
-                <button class="landing-btn-primary" onclick="showAuthFromLanding()">Comenzar prueba gratuita</button>
+                <button class="landing-btn-primary" onclick="showAuthFromLanding('signup')">Comenzar prueba gratuita</button>
                 <div class="landing-hero-sub-info">
                     <span>✓ 24 horas gratis</span>
                     <span>✓ Pago único 3,99 €</span>
                     <span>✓ Sin suscripción</span>
+                </div>
+                <div style="font-size:0.9rem; color:var(--text-muted); margin-top:6px;">
+                    ¿Ya tienes cuenta? <a onclick="showAuthFromLanding('login')" style="color:var(--accent); font-weight:600; cursor:pointer; text-decoration:underline;">Inicia sesión</a>
                 </div>
             </div>
         </div>
@@ -2532,11 +2536,6 @@ body {
                 <div class="landing-feature-icon" style="background:#dcfce7; color:#16a34a;">🔥</div>
                 <h3>Racha de estudio</h3>
                 <p>Motívate con la racha diaria, estadísticas detalladas por banco y tu progreso a lo largo del tiempo.</p>
-            </div>
-            <div class="landing-feature">
-                <div class="landing-feature-icon" style="background:#f3e8ff; color:#7c3aed;">⬇</div>
-                <h3>Descarga los bancos</h3>
-                <p>Exporta ambos bancos completos en texto con sus respuestas, incluidas las variantes por sindicato.</p>
             </div>
         </div>
     </section>
@@ -2663,7 +2662,6 @@ body {
                 <li><span>✓</span> Filtrado: correctas, incorrectas, guardadas, para repasar</li>
                 <li><span>✓</span> Búsqueda por número o texto</li>
                 <li><span>✓</span> Estadísticas completas y racha de estudio</li>
-                <li><span>✓</span> Descarga de los bancos en texto</li>
                 <li><span>✓</span> Modo claro y oscuro</li>
                 <li><span>✓</span> Tamaño de fuente personalizable</li>
                 <li><span>✓</span> Funciona en móvil, tablet y ordenador</li>
@@ -2690,7 +2688,7 @@ body {
                     <div style="font-size:0.85rem; opacity:0.8;">Prueba todas las funciones antes de pagar</div>
                 </div>
             </div>
-            <button class="landing-btn-primary landing-btn-big" onclick="showAuthFromLanding()">Comenzar ahora</button>
+            <button class="landing-btn-primary landing-btn-big" onclick="showAuthFromLanding('signup')">Comenzar ahora</button>
             <div class="landing-pricing-features">
                 <div>✓ Sin suscripción</div>
                 <div>✓ Sin tarjeta para el trial</div>
@@ -2703,7 +2701,7 @@ body {
     <section class="landing-section landing-section-cta">
         <h2>¿Listo para prepararte?</h2>
         <p>Únete y comienza tus 24 horas gratis ahora mismo.</p>
-        <button class="landing-btn-primary landing-btn-big" onclick="showAuthFromLanding()">Crear mi cuenta</button>
+        <button class="landing-btn-primary landing-btn-big" onclick="showAuthFromLanding('signup')">Crear mi cuenta</button>
     </section>
 
     <!-- Footer -->
@@ -2816,11 +2814,6 @@ body {
                 </div>
             </div>
         </div>
-        <div class="info-card">
-            <p>Esta aplicación te ayudará a prepararte para las <strong>Oposiciones de OSAKIDETZA 2026</strong> con bancos de preguntas y respuestas oficiales.</p>
-            <p>Las respuestas correctas pueden variar según la fuente (sindicatos <strong>MAD, UGT, SATSE, LAB, SPLAY y ESK</strong>, otros: <strong>EIRyOPESEnfermeria</strong>). En esas preguntas aparecerá claramente señalado para que puedas revisarlo por ti mismo.</p>
-            <p>Incluye además el banco de <strong>preguntas del temario común obligatorio</strong>, imprescindible para la oposición.</p>
-        </div>
 
         <div class="section-label">Accesos rápidos</div>
         <div class="quick-access-grid">
@@ -2852,6 +2845,12 @@ body {
                 </div>
                 <div class="qa-label">Simulacro</div>
             </button>
+        </div>
+
+        <div class="info-card">
+            <p>Esta aplicación te ayudará a prepararte para las <strong>Oposiciones de OSAKIDETZA 2026</strong> con bancos de preguntas y respuestas oficiales.</p>
+            <p>Las respuestas correctas pueden variar según la fuente (sindicatos <strong>MAD, UGT, SATSE, LAB, SPLAY y ESK</strong>, otros: <strong>EIRyOPESEnfermeria</strong>). En esas preguntas aparecerá claramente señalado para que puedas revisarlo por ti mismo.</p>
+            <p>Incluye además el banco de <strong>preguntas del temario común obligatorio</strong>, imprescindible para la oposición.</p>
         </div>
     </div>
 
@@ -3199,14 +3198,6 @@ body {
                 </div>
                 <div class="settings-chevron">›</div>
             </div>
-            <div class="settings-row" onclick="exportProgress()">
-                <div class="settings-icon">⬇</div>
-                <div class="settings-text">
-                    <h4>Exportar progreso</h4>
-                    <p>Descargar copia de seguridad</p>
-                </div>
-                <div class="settings-chevron">›</div>
-            </div>
             <div class="settings-row" onclick="logout()">
                 <div class="settings-icon">🚪</div>
                 <div class="settings-text">
@@ -3391,7 +3382,6 @@ body {
             <div class="paywall-feature"><span>✓</span> Modo examen simulacro ilimitado</div>
             <div class="paywall-feature"><span>✓</span> Simulacro General oficial (110 preguntas · 120 min)</div>
             <div class="paywall-feature"><span>✓</span> Estadísticas completas y racha de estudio</div>
-            <div class="paywall-feature"><span>✓</span> Descarga de los bancos en texto</div>
             <div class="paywall-feature"><span>✓</span> Actualizaciones futuras incluidas</div>
         </div>
 
@@ -5478,7 +5468,23 @@ async function verifyRecaptcha(token, action) {
             return true;  // soft-fail
         }
         if (body.success === false) {
-            console.warn('[recaptcha] BOT detected, score:', body.score);
+            // Distinguish bot detection (low score) from configuration errors
+            // (invalid-key, hostname-mismatch, etc.). Configuration errors
+            // shouldn't lock out real users.
+            const errs = body.errors || [];
+            const isConfigError = errs.some(e =>
+                e === 'invalid-input-secret' ||
+                e === 'invalid-keys' ||
+                e === 'hostname-mismatch' ||
+                e === 'browser-error' ||
+                e === 'invalid-input-response' ||
+                e === 'missing-input-response'
+            );
+            if (isConfigError) {
+                console.warn('[recaptcha] config error → soft-fail:', errs);
+                return true;
+            }
+            console.warn('[recaptcha] BOT detected, score:', body.score, 'errors:', errs);
             return false;
         }
         return true;
@@ -5751,10 +5757,14 @@ function showLanding() {
     window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
-function showAuthFromLanding() {
+function showAuthFromLanding(initialTab) {
     document.getElementById('landing-screen').style.display = 'none';
     document.getElementById('auth-screen').style.display = 'flex';
     markFormSeen('auth');
+    // Open the requested tab (default: signup, since the main CTA is "start free trial")
+    if (typeof switchAuthTab === 'function') {
+        switchAuthTab(initialTab === 'login' ? 'login' : 'signup');
+    }
     window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
@@ -6262,7 +6272,7 @@ function renderReview() {
     container.innerHTML = '';
 
     // Resume helper: show a "Continue where you left off" button at the top
-    // if there is a saved scroll position for this bank.
+    // if there is a manual bookmark for this bank.
     const resumeKey = 'review_resume_' + currentBank;
     const resumeIdx = parseInt(localStorage.getItem(resumeKey) || '-1', 10);
     let resumeNum = null;
@@ -6291,8 +6301,8 @@ function renderReview() {
     // Show resume button if there is a saved position AND it appears in the
     // current visible list (filtering may hide it, in which case the button
     // would lead nowhere)
-    const resumeBtn = document.getElementById('resume-btn');
-    if (resumeBtn) resumeBtn.remove();
+    const oldBtn = document.getElementById('resume-btn');
+    if (oldBtn) oldBtn.remove();
     if (resumeNum != null && visibleIdxs.includes(resumeIdx)) {
         const btn = document.createElement('button');
         btn.id = 'resume-btn';
@@ -6305,9 +6315,6 @@ function renderReview() {
     if (shown === 0) {
         container.innerHTML = '<div class="card" style="text-align:center; padding:40px 20px; color:var(--text-muted);">No hay preguntas que coincidan con el filtro</div>';
     }
-
-    // Track which question is currently in view so we can resume next time.
-    setupReviewScrollTracking();
 }
 
 function jumpToReviewQuestion(idx) {
@@ -6320,34 +6327,17 @@ function jumpToReviewQuestion(idx) {
     setTimeout(() => { card.style.boxShadow = ''; }, 1500);
 }
 
-let _reviewScrollObs = null;
-function setupReviewScrollTracking() {
-    // IntersectionObserver tells us which question card is most visible;
-    // we save its index so the next time we open this bank we can resume.
-    if (_reviewScrollObs) { _reviewScrollObs.disconnect(); _reviewScrollObs = null; }
-    if (typeof IntersectionObserver === 'undefined') return;
-    const cards = document.querySelectorAll('#review-questions .question-card');
-    if (!cards.length) return;
+function markResumePoint(idx) {
+    // User explicitly marks a question as "continue from here next time"
     const resumeKey = 'review_resume_' + currentBank;
-    let mostVisibleIdx = null;
-    let mostVisibleRatio = 0;
-    _reviewScrollObs = new IntersectionObserver((entries) => {
-        for (const e of entries) {
-            const idStr = (e.target.id || '').replace('review-q-', '');
-            const idx = parseInt(idStr, 10);
-            if (Number.isNaN(idx)) continue;
-            if (e.isIntersecting && e.intersectionRatio > mostVisibleRatio) {
-                mostVisibleRatio = e.intersectionRatio;
-                mostVisibleIdx = idx;
-            }
-        }
-        if (mostVisibleIdx != null) {
-            localStorage.setItem(resumeKey, String(mostVisibleIdx));
-            // reset for next batch of events
-            mostVisibleRatio = 0;
-        }
-    }, { threshold: [0.4, 0.6] });
-    cards.forEach(c => _reviewScrollObs.observe(c));
+    const previous = parseInt(localStorage.getItem(resumeKey) || '-1', 10);
+    if (previous === idx) {
+        // Toggle: pressing again removes the bookmark
+        localStorage.removeItem(resumeKey);
+    } else {
+        localStorage.setItem(resumeKey, String(idx));
+    }
+    renderReview();
 }
 
 function shouldShowQuestion(idx, s) {
@@ -6512,10 +6502,13 @@ function buildQuestionHTML(q, idx, s, mode) {
 
     let actionsHTML = '';
     if (mode === 'review') {
+        const resumeKey = 'review_resume_' + currentBank;
+        const isMarked = parseInt(localStorage.getItem(resumeKey) || '-1', 10) === idx;
         actionsHTML = `
             <button class="q-action-btn reset" onclick="resetQuestion(${idx})" title="Rehacer pregunta">🔄 Rehacer</button>
             <button class="q-action-btn ${s.saved ? 'saved' : ''}" onclick="toggleSave(${idx})" title="Guardar">${s.saved ? '✓ Guardada' : '＋ Guardar'}</button>
             <button class="q-action-btn ${s.doubt ? 'doubt' : ''}" onclick="toggleDoubt(${idx})" title="Marcar para repasar">${s.doubt ? '✓ Repasar' : '＋ Repasar'}</button>
+            <button class="q-action-btn ${isMarked ? 'bookmarked' : ''}" onclick="markResumePoint(${idx})" title="Continuar desde aquí la próxima vez">${isMarked ? '✓ Marcada' : '📍 Continuar desde aquí'}</button>
         `;
     }
 
